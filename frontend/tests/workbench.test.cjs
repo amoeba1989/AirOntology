@@ -62,6 +62,7 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
       position_lon: p.lon,
       position_lat: p.lat,
       distance: 80 + i * 40 + j * 220,
+      level: j ? "OutsideThreshold" : "HighAttention",
       level_label: j ? "阈值外" : "高关注",
       color: j ? "#5aab87" : "#e45555",
       reason: "距离80米≤100米",
@@ -170,11 +171,20 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     assert.ok(
       doc.querySelector(".explanation-panel").textContent.includes("rule-test"),
     );
-    button("本体定义 TTL").click();
+    assert.equal(doc.querySelectorAll(".alarm-card").length, 3);
+    assert.ok(doc.querySelector(".alarm-panel.urgent"));
+    button("ABox · 实例与关系").click();
+    await until(() => doc.querySelectorAll(".abox-grid article").length === 5);
+    assert.equal(doc.querySelectorAll(".abox-table tbody tr").length, 6);
+    assert.ok(doc.querySelector(".abox-view").textContent.includes("rule-test"));
+    button("TBox · 类与属性定义").click();
+    await until(() => doc.querySelector(".structure-grid"));
+    assert.equal(doc.querySelector(".abox-view"), null);
+    button("TBox 定义 TTL").click();
     await until(() =>
       doc.querySelector("pre")?.textContent.includes("owl:Class"),
     );
-    button("当前实例 TTL").click();
+    button("选中实例 TTL").click();
     await until(() =>
       doc.querySelector("pre")?.textContent.includes("latestAssessment"),
     );

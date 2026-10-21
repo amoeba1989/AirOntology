@@ -73,6 +73,16 @@ createApp({
         .filter((a) => a.position_id === point.value?.id)
         .sort((a, b) => a.distance - b.distance),
     );
+    const alarmEntries = computed(() => [...(data.value?.assessments || [])]
+      .filter(a => !a.stale && !a.config_pending && ["HighAttention", "MediumAttention", "LowAttention"].includes(a.level))
+      .sort((a,b) => ["HighAttention", "MediumAttention", "LowAttention"].indexOf(a.level) - ["HighAttention", "MediumAttention", "LowAttention"].indexOf(b.level) || a.distance-b.distance));
+    const staleTargets = computed(() => data.value?.targets.filter(t => t.stale) || []);
+    const pendingCount = computed(() => data.value?.assessments.filter(a => a.config_pending).length || 0);
+    async function openKnowledge(value) {
+      await selectTab(value);
+      await nextTick();
+      document.getElementById("knowledge-panel")?.scrollIntoView?.({behavior:"smooth", block:"start"});
+    }
     const groups = computed(() =>
       ["类", "对象属性", "数据属性"].map((kind) => ({
         kind,
@@ -554,6 +564,10 @@ createApp({
       explanation,
       ranked,
       groups,
+      alarmEntries,
+      staleTargets,
+      pendingCount,
+      openKnowledge,
       tab,
       definition,
       instance,
