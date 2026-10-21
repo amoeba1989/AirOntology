@@ -3,24 +3,40 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-# 本体定义：只描述类别、属性和关系，不保存实时位置。
-cu: a owl:Ontology ;
-    rdfs:label "无人机距离关注演示本体"@zh ;
-    owl:versionInfo "1.0.0" ;
-    rdfs:comment "业务代码计算距离及等级，本体表达结果，不配置自动推理。"@zh .
+cu: a owl:Ontology ; rdfs:label "无人机观测与评估本体"@zh ; owl:versionInfo "2.0.0" ;
+ rdfs:comment "Python计算距离和等级；RDF关联目标、观测、阵地与规则。未启用自动推理。"@zh .
 
-cu:BlueDevice a owl:Class ; rdfs:label "无人机目标"@zh ; rdfs:comment "被持续观测的无人机。"@zh .
-cu:Position a owl:Class ; rdfs:label "阵地"@zh ; rdfs:comment "固定的监测关联阵地。"@zh .
-cu:DistanceLevel a owl:Class ; rdfs:label "距离关注等级"@zh ; rdfs:comment "仅根据距离阈值分级，不代表综合威胁。"@zh .
+cu:BlueDevice a owl:Class ; rdfs:label "无人机目标"@zh ; rdfs:comment "持续存在的目标对象，不直接保存多个阵地的距离。"@zh .
+cu:Position a owl:Class ; rdfs:label "阵地"@zh ; rdfs:comment "被关联评估的固定阵地。"@zh .
+cu:DistanceLevel a owl:Class ; rdfs:label "距离关注等级"@zh ; rdfs:comment "仅根据距离分级，不代表综合威胁。"@zh .
+cu:Observation a owl:Class ; rdfs:label "观测记录"@zh ; rdfs:comment "某来源在某时刻上报的位置和速度。"@zh .
+cu:Assessment a owl:Class ; rdfs:label "评估记录"@zh ; rdfs:comment "针对一架无人机和一个阵地，依据一条观测和一版规则产生的评估。"@zh .
+cu:DistanceRule a owl:Class ; rdfs:label "距离分级规则"@zh ; rdfs:comment "一版配置的不可变规则快照。"@zh .
 
-# 数据属性：对象与文字、数字、时间等值的联系。
+# 数据属性
 cu:name a owl:DatatypeProperty ; rdfs:label "名称"@zh ; rdfs:range xsd:string .
 cu:lon a owl:DatatypeProperty ; rdfs:label "经度（WGS84）"@zh ; rdfs:range xsd:double .
 cu:lat a owl:DatatypeProperty ; rdfs:label "纬度（WGS84）"@zh ; rdfs:range xsd:double .
 cu:speed a owl:DatatypeProperty ; rdfs:label "速度（米/秒）"@zh ; rdfs:range xsd:double .
-cu:timestamp a owl:DatatypeProperty ; rdfs:label "最新观测时间"@zh ; rdfs:range xsd:dateTime .
-cu:distanceToPosition a owl:DatatypeProperty ; rdfs:label "到阵地水平距离（米）"@zh ; rdfs:range xsd:double .
+cu:timestamp a owl:DatatypeProperty ; rdfs:label "观测或评估时间"@zh ; rdfs:range xsd:dateTime .
+cu:source a owl:DatatypeProperty ; rdfs:label "数据来源"@zh ; rdfs:range xsd:string .
+cu:distanceToPosition a owl:DatatypeProperty ; rdfs:label "评估距离（米）"@zh ; rdfs:range xsd:double .
+cu:positionId a owl:DatatypeProperty ; rdfs:label "评估时阵地编号"@zh ; rdfs:range xsd:string .
+cu:positionName a owl:DatatypeProperty ; rdfs:label "评估时阵地名称"@zh ; rdfs:range xsd:string .
+cu:positionLon a owl:DatatypeProperty ; rdfs:label "评估时阵地经度"@zh ; rdfs:range xsd:double .
+cu:positionLat a owl:DatatypeProperty ; rdfs:label "评估时阵地纬度"@zh ; rdfs:range xsd:double .
+cu:ruleVersion a owl:DatatypeProperty ; rdfs:label "配置和规则版本"@zh ; rdfs:range xsd:string .
+cu:highThreshold a owl:DatatypeProperty ; rdfs:label "高关注阈值（米）"@zh ; rdfs:range xsd:double .
+cu:mediumThreshold a owl:DatatypeProperty ; rdfs:label "中关注阈值（米）"@zh ; rdfs:range xsd:double .
+cu:lowThreshold a owl:DatatypeProperty ; rdfs:label "低关注阈值（米）"@zh ; rdfs:range xsd:double .
+cu:staleSeconds a owl:DatatypeProperty ; rdfs:label "数据有效时长（秒）"@zh ; rdfs:range xsd:double .
+cu:configJson a owl:DatatypeProperty ; rdfs:label "运行配置JSON"@zh ; rdfs:range xsd:string .
 
-# 对象属性：对象与另一个对象的联系。
-cu:monitoredAgainst a owl:ObjectProperty ; rdfs:label "关联阵地"@zh ; rdfs:domain cu:BlueDevice ; rdfs:range cu:Position .
-cu:hasDistanceLevel a owl:ObjectProperty ; rdfs:label "距离关注等级"@zh ; rdfs:domain cu:BlueDevice ; rdfs:range cu:DistanceLevel .
+# 对象属性
+cu:latestObservation a owl:ObjectProperty ; rdfs:label "最新观测"@zh ; rdfs:domain cu:BlueDevice ; rdfs:range cu:Observation .
+cu:latestAssessment a owl:ObjectProperty ; rdfs:label "当前评估"@zh ; rdfs:domain cu:BlueDevice ; rdfs:range cu:Assessment .
+cu:ofTarget a owl:ObjectProperty ; rdfs:label "所属无人机"@zh ; rdfs:range cu:BlueDevice .
+cu:toPosition a owl:ObjectProperty ; rdfs:label "评估针对的阵地"@zh ; rdfs:domain cu:Assessment ; rdfs:range cu:Position .
+cu:basedOnObservation a owl:ObjectProperty ; rdfs:label "依据观测"@zh ; rdfs:domain cu:Assessment ; rdfs:range cu:Observation .
+cu:usedRule a owl:ObjectProperty ; rdfs:label "采用规则"@zh ; rdfs:domain cu:Assessment ; rdfs:range cu:DistanceRule .
+cu:hasDistanceLevel a owl:ObjectProperty ; rdfs:label "距离关注等级"@zh ; rdfs:domain cu:Assessment ; rdfs:range cu:DistanceLevel .

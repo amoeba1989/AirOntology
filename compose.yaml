@@ -44,6 +44,7 @@ services:
       <<: *app-env
       FUSEKI_URL: http://fuseki:3030/counteruav
       STALE_SECONDS: ${STALE_SECONDS:-5}
+      HISTORY_LIMIT: ${HISTORY_LIMIT:-300}
       HIGH_THRESHOLD: ${HIGH_THRESHOLD:-100}
       MEDIUM_THRESHOLD: ${MEDIUM_THRESHOLD:-200}
       LOW_THRESHOLD: ${LOW_THRESHOLD:-300}

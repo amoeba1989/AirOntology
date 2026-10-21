@@ -1,109 +1,107 @@
-# AirOntology · 无人机本体工作台
+# AirOntology · 无人机本体工作台 V2
 
-一个用于学习 RDF/OWL 的最小业务闭环：MQTT实时观测 → Python距离计算 → RDF实例更新 → Fuseki查询 → Leaflet地图展示。
+通过“MQTT观测 → Python计算 → RDF事实 → Fuseki查询 → Leaflet展示”理解本体。第二版把无人机、观测、评估、阵地和规则分开建模，不启用自动推理。
 
-第一版支持一架模拟无人机、一个固定阵地、水平距离分级、中文本体结构、定义TTL与实时实例TTL查看。计算由Python完成，不启用自动推理。只保留最新状态，等级仅表示距离关注程度。
+## 第二版能做什么
 
-## 一、ECS快速部署
+- 模拟3架无人机，首次启动默认配置2个固定阵地；每架目标对每个阵地独立评估。
+- 点击阵地查看无人机距离排序，点击无人机查看各阵地评估。
+- 查看评估依据：原始观测、来源、时间、当时阵地坐标、规则版本和阈值。
+- 查看中文本体结构、定义TTL和选中目标实例TTL。
+- 加载选中目标的有界历史，拖动时间轴、播放、暂停、返回实时。
+- 页面维护阵地、阈值、过期时间和历史保留数量；配置持久化，旧评估不改写。
 
-前置条件：Linux ECS已安装Git、Docker及Docker Compose插件，可访问Docker镜像仓库、npm、PyPI及Apache归档站。建议至少2核4GB内存，首次构建会下载依赖。
+**距离关注等级只表示距离阈值分级，不是综合威胁判断。**
+
+## 一、运行和更新
+
+需要Docker Desktop（Mac）或Docker Engine及Compose（Linux）。首次构建需要访问Docker Hub、npm、PyPI及Apache归档站。
 
 ```bash
-sudo mkdir -p /opt/airontology
-sudo chown "$USER":"$(id -gn)" /opt/airontology
-git clone git@github.com:amoeba1989/AirOntology.git /opt/airontology
-cd /opt/airontology
+git clone git@github.com:amoeba1989/AirOntology.git
+cd AirOntology
 cp .env.example .env
-docker compose config --quiet
 docker compose build
 docker compose up -d --wait
 docker compose --profile demo up -d simulator
-curl -fsS http://127.0.0.1:8092/api/health
 ```
 
-如果ECS没有GitHub SSH访问权限，可以将clone地址换成 `https://github.com/amoeba1989/AirOntology.git`。
+Mac浏览器打开 `http://localhost:8092`。ECS默认仅监听本机，可使用SSH隧道或参考 `deploy/nginx.conf.example` 配置独立域名根路径反向代理。
 
-默认应用地址：`http://127.0.0.1:8092`。默认只监听ECS本机，MQTT和Fuseki不发布宿主机端口。
-
-### 从自己的电脑打开
-
-推荐先使用SSH隧道：在自己电脑终端执行以下命令，将`用户`和`ECS地址`替换成实际值。
+已有第一版项目：
 
 ```bash
-ssh -L 8092:127.0.0.1:8092 用户@ECS地址
-```
-
-随后用电脑浏览器打开 `http://localhost:8092`。
-
-长期使用可以参考 `deploy/nginx.conf.example` 设置独立域名反向代理，代理到 `127.0.0.1:8092`。应用按域名根路径部署。配置域名及证书后使用HTTPS。
-
-如需临时直接通过ECS IP访问，可在 `.env` 中设置 `BIND_ADDRESS=0.0.0.0`，执行 `docker compose up -d app`，并在安全组允许自己IP访问8092端口。此演示版没有登录鉴权，访问范围应按实际演示需要设置。
-
-### 演示与日常操作
-
-```bash
-# 查看运行状态和日志
-docker compose ps
-docker compose logs --tail=100 app simulator
-
-# 暂停模拟，超过默认5秒后页面显示数据过期
-docker compose --profile demo stop simulator
-
-# 恢复模拟
-docker compose --profile demo up -d simulator
-
-# 停止服务；保留数据卷
-docker compose --profile demo down
-
-# 更新代码及镜像，并启动演示
+cd AirOntology
+# 如有自行修改，先提交或妥善保存修改，再拉取。
 git pull --ff-only
-docker compose build
+docker compose build app
 docker compose up -d --wait
 docker compose --profile demo up -d --force-recreate simulator
 ```
 
-不要执行 `docker compose down -v`，除非确实需要清空持久化数据。
+Fuseki与MQTT沿用原镜像配置，第二版只需重建应用镜像。尚未完成第一版基础镜像构建时，仍需先运行 `docker compose build`。
 
-更改阵地配置后需重建应用容器，并重启模拟器。旧距离在新观测到来时重新计算。第一版固定阵地编号建议保持不变。
+第一次升级前建议停止服务并备份数据。第一版已有最新位置会自动补齐观测和评估，无法恢复第一版未保存的历史。详情见 [第二版说明](docs/第二版说明.md)。不要执行 `down -v`，除非确实要删除数据。
 
-## 二、页面使用
+Docker拉取成功但构建报认证失败/TLS超时属于构建网络问题，本次功能升级不保证解决该环境问题。Mac应在Docker Desktop配置可用代理；终端代理测试不能完全代表构建器网络。
 
-1. **实时态势**：阵地、无人机、距离连线、100/200/300米参考圈；支持地图缩放、定位全景和跟随目标。
-2. **对象详情**：显示编号、位置、速度、距离、等级、关联阵地和最新观测时间。
-3. **中文结构**：查看“类、对象属性、数据属性”，中文名称与英文标识对应。
-4. **本体定义TTL**：查看静态结构，理解类别和属性的定义。
-5. **当前实例TTL**：从Fuseki查询无人机最新事实，并附关联阵地、等级信息。
+### 操作命令
 
-模拟器每秒发布一条位置，目标在约20～380米间往返，约72秒一个完整周期。页面每秒轮询接口。
+```bash
+# 状态和日志
+docker compose ps -a
+docker compose logs --tail=100 app simulator
 
-默认底图使用OpenStreetMap。底图不可访问时会提示，目标和阵地仍可显示在网格背景上。可以在 `.env` 中替换 `VITE_TILE_URL` 和 `VITE_TILE_ATTRIBUTION` 为有权使用的WGS84兼容瓦片源，然后执行 `docker compose build app` 和 `docker compose up -d app`。国内GCJ-02底图需要另行做显示坐标转换，不能直接混用。
+# 暂停/恢复真实消息模拟；页面回放暂停不会停止MQTT接入
+docker compose --profile demo stop simulator
+docker compose --profile demo up -d simulator
 
-## 三、本体和存储
+# 只停止服务，保留数据
+docker compose --profile demo down
 
-- `ontology/cu_ontology.ttl`：本体结构，定义无人机、阵地、等级及属性关系。
-- `ontology/initial_data.ttl`：高、中、低、阈值外四个等级实例；固定阵地根据配置生成。
-- `urn:airontology:schema`：Fuseki命名图，保存模型和基础实例。
-- `urn:airontology:state`：Fuseki命名图，保存目标最新状态。
-- Fuseki采用TDB2持久化数据库，数据放在Docker卷中。
+# 完整服务验收（本机有Python时）
+python3 scripts/smoke.py
+```
 
-业务命名空间：`http://counteruav.org/counterUav#`，简写为 `cu:`。
+默认服务端口8092。配置界面没有登录鉴权，适用于本机或受限演示环境，不应直接向不受控访问者开放配置接口。
+
+## 二、建议演示顺序
+
+1. 在地图和对象下拉框选择无人机001，再选择一号、二号阵地，对比独立评估。
+2. 查看选中阵地的距离排序，点击“查看评估”。解释面板会锁定该条记录。
+3. 对照“观测标识 → 评估记录 → 阵地 → 规则版本”，说明结果来源。
+4. 切换中文结构和TTL，认识Observation（观测）、Assessment（评估）、DistanceRule（规则）。
+5. 运行约20秒后点击“加载选中目标历史”，播放或拖动时间轴；此时实时接入仍继续。
+6. 返回实时，在配置中调整阵地或阈值；下一条观测采用新版本，旧评估保留原坐标和规则。
+7. 停止模拟器，超过配置的过期时间后页面显示过期。
+
+回放按选中目标保留的观测时间推进，在每个时间点显示各目标当时最近的一条观测。不存在该时刻之前的保留观测时，该目标不会出现。所有回放接口均为只读，不会重新发布MQTT消息。
+
+## 三、本体模型与数据
 
 | 类 | 中文含义 |
 | --- | --- |
-| BlueDevice | 无人机目标 |
+| BlueDevice | 持续存在的无人机目标 |
 | Position | 阵地 |
-| DistanceLevel | 距离关注等级 |
+| Observation | 某来源在某时刻上报的观测 |
+| Assessment | 一条观测针对一个阵地的距离与等级评估 |
+| DistanceRule | 使用的规则快照 |
+| DistanceLevel | 高、中、低关注和阈值外四种等级的类别 |
 
-| 等级实例 | 中文含义 | 默认规则 |
-| --- | --- | --- |
-| HighAttention | 高关注 | 距离≤100米 |
-| MediumAttention | 中关注 | 100米<距离≤200米 |
-| LowAttention | 低关注 | 200米<距离≤300米 |
-| OutsideThreshold | 阈值外 | 距离>300米 |
+无人机通过latestObservation关联最新观测，通过latestAssessment关联多个当前评估；评估通过basedOnObservation、toPosition、usedRule分别关联观测、阵地和规则。
 
-OWL定义不会自动执行距离计算。Python根据坐标计算水平大地距离，再写入RDF事实。等级实例属于具体取值，并非等级子类。
+| Fuseki命名图 | 用途 |
+| --- | --- |
+| urn:airontology:schema | 静态本体定义与等级实例 |
+| urn:airontology:config | 当前运行配置及阵地 |
+| urn:airontology:state | 无人机最新状态和观测/评估指针 |
+| urn:airontology:history | 有界观测、评估及不可变规则快照 |
 
-目标URI由固定命名空间和受校验的目标编号生成。使用一次SPARQL DELETE/INSERT更新最新状态，并在数据库中比较时间戳，避免重复或乱序报文覆盖新状态。服务重启后仍使用数据库中的时间进行判断。
+每目标默认保留300条观测，可在10～1000之间配置。清理观测时同步清理其评估，未引用的规则也清理。不是永久审计存储，目标持续上报时默认约保留5分钟。
+
+规则版本是完整配置的内容摘要；位置、阈值、过期时间或保留数量变化均可能产生新版本。旧评估保存计算时的阵地名称、坐标、阈值和观测来源。配置只作用于下一条有效新观测，等待期间显示“旧配置/待新观测”。
+
+`.env`中的阵地和阈值仅在数据库没有运行配置时作为初始值。后续以页面持久化配置为准，重启不会用环境变量覆盖它。
 
 ## 四、MQTT报文
 
@@ -112,6 +110,8 @@ OWL定义不会自动执行距离计算。Python根据坐标计算水平大地�
 ```json
 {
   "target_id": "drone001",
+  "name": "无人机001",
+  "source": "固定航线模拟器",
   "lon": 116.4074,
   "lat": 39.9042,
   "speed": 12.5,
@@ -119,68 +119,60 @@ OWL定义不会自动执行距离计算。Python根据坐标计算水平大地�
 }
 ```
 
-经纬度为WGS84，速度单位为米/秒，时间必须带时区。目标编号允许字母、数字、下划线和短横线。经纬度需在合法范围，速度非负，拒绝NaN等非有限值。超过当前时间30秒的未来报文会被拒绝，因此ECS时间应准确。示例时间仅说明格式，实际发布请使用当前时间。
+name与source可省略。经纬度为WGS84，速度单位为米/秒，时间必须带时区，实际消息请使用当前时间。拒绝非法数值、过远未来时间、重复及乱序覆盖；业务编号不能与阵地编号和本体保留标识冲突。
 
-可以在内部容器中通过 `mosquitto_pub` 发布自有测试报文，或在后续接真实设备时调整接入配置。高度字段可附带，但第一版不使用。
+地图底图默认OpenStreetMap，无法访问时仍显示对象和网格背景。通过 `.env` 中的 `VITE_TILE_URL` 和 `VITE_TILE_ATTRIBUTION` 更换有使用权限的WGS84兼容瓦片，再重建应用镜像。国内GCJ-02底图不能直接与WGS84坐标混用。
 
 ## 五、接口
 
 | 接口 | 用途 |
 | --- | --- |
-| GET /api/health | MQTT及Fuseki状态、队列和错误计数 |
-| GET /api/ontology | 本体中文结构 |
-| GET /api/ontology/ttl | 静态本体定义文本 |
-| GET /api/situation | 阵地及最新目标态势 |
-| GET /api/targets/{id} | 指定目标详情 |
-| GET /api/targets/{id}/ttl | 指定目标实例及关联信息 |
+| GET /api/health | 服务健康与消息处理状态 |
+| GET /api/config | 当前配置和版本 |
+| PUT /api/config | 携带expected_version保存配置，冲突返回409 |
+| GET /api/situation | 当前多目标多阵地态势 |
+| GET /api/situation?at=时间 | 指定时间的历史快照；时间需URL编码 |
+| GET /api/targets/{id} | 指定目标，可加at参数 |
+| GET /api/targets/{id}/ttl | 目标关联实例TTL，可加at参数 |
+| GET /api/assessments/{id} | 评估及观测、规则依据 |
+| GET /api/assessments/{id}/ttl | 单条评估关联事实TTL |
+| GET /api/history?target_id=编号&limit=300 | 保留的观测和评估，时间升序 |
+| GET /api/ontology | 中文本体结构 |
+| GET /api/ontology/ttl | 静态本体TTL |
 | GET /docs | FastAPI交互接口文档 |
 
-`/api/health`在依赖故障时返回HTTP 200和`status=degraded`，Docker健康检查会检查JSON状态并标记不健康。MQTT队列溢出和非法报文有计数；写入失败最多重试3次，并在日志和健康信息中显示。演示版不提供消息零丢失保证。
+时间参数示例：`2026-10-21T10%3A30%3A00Z`，前端自动编码。
 
-## 六、本地开发及测试
+## 六、本地开发与测试
 
-Python 3.12、Node.js 22、Java 17（本地直接启动Fuseki时需要）。
+Python 3.12、Node.js 22。Compose运行依赖服务：
 
 ```bash
+docker compose -f compose.yaml -f compose.dev.yaml up -d mqtt fuseki
 python3.12 -m venv .venv
 . .venv/bin/activate
 pip install -r backend/requirements-dev.txt
-
-# 仅启动依赖服务
-docker compose -f compose.yaml -f compose.dev.yaml up -d mqtt fuseki
+PYTHONPATH=backend python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-上面的 `compose.dev.yaml` 已为MQTT映射 `127.0.0.1:1883:1883`、为Fuseki映射 `127.0.0.1:3030:3030`，仅限本机访问。也可以直接在本机启动两个服务。
+新终端分别运行 `python simulator/main.py` 与前端：
 
 ```bash
-# 在仓库根目录，后端使用localhost依赖服务
-PYTHONPATH=backend python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-
-# 新终端启动前端，Vite自动代理/api到8000
 cd frontend
 npm ci
 npm run dev
+```
 
-# 仓库根目录，新终端启动模拟器
-python simulator/main.py
+测试：
 
-# 后端测试和前端构建
+```bash
+# 仓库根目录
 PYTHONPATH=backend python -m pytest backend/tests -q
 cd frontend
+npm test
 npm run build
 ```
 
-应用必须使用单个Uvicorn worker，避免同一进程组重复消费MQTT。Web源码与后端一起构建进应用镜像，不依赖浏览器从CDN下载Vue或Leaflet。
+前端自动测试采用模拟API与DOM环境，验证交互，不代替真实浏览器视觉验收。后端用RDFLib执行实际SPARQL进行测试，并另行与真实Fuseki联调。应用使用单Uvicorn worker，配置写入和MQTT处理在进程内串行协调；不是多实例部署方案。
 
-## 七、目录与后续计划
-
-- `backend/app`：配置、校验、空间计算、RDF存取、MQTT消费和API。
-- `backend/tests`：核心测试。
-- `frontend`：Vue与Leaflet工作台。
-- `ontology`：模型定义与基础实例。
-- `simulator`：固定航线模拟器。
-- `deploy`：Fuseki镜像、消息服务和Nginx配置。
-- `docs/开发计划.md`：第一版详细计划与第二版简要计划。
-- `docs/本体学习说明.md`：中文术语与代码对应关系。
-
-第二版考虑多目标、多阵地、独立评估记录、历史回放和关系图。当前模型的距离和等级针对单阵地，多阵地需要先引入独立评估对象，不能直接在无人机上堆多个距离值。
+具体学习说明见 [本体学习说明](docs/本体学习说明.md)，升级和限制见 [第二版说明](docs/第二版说明.md)。

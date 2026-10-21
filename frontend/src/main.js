@@ -9,34 +9,62 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./style.css";
+import template from "./template.js";
 
 createApp({
   setup() {
+    const data = ref(null),
+      health = ref(null),
+      selected = ref("drone001"),
+      positionId = ref("pos001");
     const tab = ref("structure"),
-      data = ref(null),
-      selected = ref(null),
-      health = ref(null);
-    const items = ref([]),
+      items = ref([]),
       definition = ref(""),
       instance = ref(""),
       error = ref(""),
       toast = ref("");
-    const mapMessage = ref(""),
-      copied = ref(false),
+    const mode = ref("live"),
       loading = ref(true),
-      follow = ref(false);
+      follow = ref(false),
+      mapMessage = ref(""),
+      trace = ref(null);
+    const records = ref([]),
+      historyTarget = ref(""),
+      frame = ref(0),
+      playing = ref(false),
+      replayBusy = ref(false);
+    const configOpen = ref(false),
+      draft = ref(null),
+      configVersion = ref(""),
+      saving = ref(false),
+      configError = ref("");
     let map,
-      pointLayer,
-      targetLayer,
-      linkLayer,
-      circles,
+      layers,
+      pathLayer,
       timer,
-      cancelled = false,
-      polling = false;
+      playTimer,
+      closed = false,
+      polling = false,
+      initialized = false,
+      snapshotToken = 0;
     const target = computed(
       () =>
         data.value?.targets.find((t) => t.id === selected.value) ||
         data.value?.targets[0],
+    );
+    const point = computed(
+      () =>
+        data.value?.positions.find((p) => p.id === positionId.value) ||
+        data.value?.positions[0],
+    );
+    const assessment = computed(() =>
+      target.value?.assessments.find((a) => a.position_id === point.value?.id),
+    );
+    const explanation = computed(() => trace.value || assessment.value);
+    const ranked = computed(() =>
+      [...(data.value?.assessments || [])]
+        .filter((a) => a.position_id === point.value?.id)
+        .sort((a, b) => a.distance - b.distance),
     );
     const groups = computed(() =>
       ["类", "对象属性", "数据属性"].map((kind) => ({
@@ -47,147 +75,354 @@ createApp({
     const status = computed(() =>
       error.value
         ? "服务异常"
-        : !data.value?.targets.length
-          ? "等待航迹"
-          : target.value?.stale
-            ? "数据过期"
-            : "实时更新",
+        : mode.value === "replay"
+          ? "历史回放"
+          : !data.value?.targets.length
+            ? "等待航迹"
+            : target.value?.stale
+              ? "数据过期"
+              : "实时更新",
     );
     const formatTime = (value) =>
-      value
-        ? new Date(value).toLocaleTimeString("zh-CN", { hour12: false })
-        : "—";
-    const showToast = (message) => {
+      value ? new Date(value).toLocaleString("zh-CN", { hour12: false }) : "—";
+    const notice = (message) => {
       toast.value = message;
-      setTimeout(() => {
-        toast.value = "";
-      }, 2400);
+      setTimeout(() => (toast.value = ""), 3000);
     };
-    async function get(path, text = false) {
-      const r = await fetch(path, { signal: AbortSignal.timeout(8000) });
-      if (!r.ok)
-        throw new Error(`请求失败（${r.status}），请检查后端及 Fuseki 服务`);
-      return text ? r.text() : r.json();
+    async function request(path, text = false, options = {}) {
+      const result = await fetch(path, {
+        signal: AbortSignal.timeout(15000),
+        ...options,
+      });
+      if (!result.ok) {
+        let detail;
+        try {
+          detail = (await result.json()).detail;
+        } catch {}
+        throw new Error(
+          typeof detail === "string"
+            ? detail
+            : `请求失败（${result.status}），请检查输入或服务状态`,
+        );
+      }
+      return text ? result.text() : result.json();
     }
+    const suffix = () =>
+      mode.value === "replay" && data.value?.at
+        ? `?at=${encodeURIComponent(data.value.at)}`
+        : "";
     async function loadInstance() {
-      const id = target.value?.id;
-      if (!id) {
+      if (!target.value) {
         instance.value = "";
         return;
       }
-      const ttl = await get(`/api/targets/${encodeURIComponent(id)}/ttl`, true);
-      if (id === target.value?.id) instance.value = ttl;
+      const id = target.value.id,
+        at = data.value?.at;
+      const result = await request(
+        `/api/targets/${encodeURIComponent(id)}/ttl${suffix()}`,
+        true,
+      );
+      if (target.value?.id === id && data.value?.at === at)
+        instance.value = result;
     }
     async function selectTab(value) {
       tab.value = value;
-      if (value === "instance") {
+      if (value === "instance")
         try {
           await loadInstance();
         } catch (e) {
           error.value = e.message;
         }
-      }
+    }
+    function tooltip(text) {
+      const el = document.createElement("span");
+      el.textContent = text;
+      return el;
     }
     function draw() {
       if (!map || !data.value) return;
-      const p = data.value.position;
-      const center = [p.lat, p.lon];
-      if (!pointLayer) {
-        pointLayer = L.marker(center, {
+      layers.clearLayers();
+      for (const p of data.value.positions) {
+        const marker = L.marker([p.lat, p.lon], {
           icon: L.divIcon({
             className: "",
-            html: '<div class="position-icon">⌖</div>',
+            html: `<div class="position-icon ${p.id === point.value?.id ? "selected-marker" : ""}">⌖</div>`,
             iconSize: [34, 34],
             iconAnchor: [17, 17],
           }),
-        }).addTo(map);
-        pointLayer.bindTooltip(p.name, {
+        }).addTo(layers);
+        marker.bindTooltip(tooltip(p.name), {
           permanent: true,
           direction: "bottom",
           offset: [0, 17],
           className: "map-label",
         });
-        circles = L.layerGroup().addTo(map);
-        [...data.value.thresholds]
+        marker.on("click", () => choosePosition(p.id));
+      }
+      const thresholds = assessment.value?.thresholds || data.value.thresholds;
+      if (point.value)
+        [...thresholds]
           .reverse()
           .forEach((radius, i) =>
-            L.circle(center, {
+            L.circle([point.value.lat, point.value.lon], {
               radius,
               color: ["#5da7ce", "#dda456", "#d97979"][i],
               weight: 1,
               dashArray: "5 7",
               fillOpacity: 0.025,
-            }).addTo(circles),
+            }).addTo(layers),
           );
-        map.setView(center, 17);
-      }
-      targetLayer?.remove();
-      linkLayer?.remove();
-      if (target.value) {
-        const t = target.value,
-          loc = [t.lat, t.lon];
-        const color = t.stale ? "#87939e" : t.color;
-        targetLayer = L.marker(loc, {
+      for (const t of data.value.targets) {
+        const evaluation = t.assessments.find(
+            (a) => a.position_id === point.value?.id,
+          ),
+          color = t.stale ? "#87939e" : evaluation?.color || "#87939e";
+        const marker = L.marker([t.lat, t.lon], {
           icon: L.divIcon({
             className: "",
-            html: `<div class="drone-icon" style="--marker:${color}">✣</div>`,
+            html: `<div class="drone-icon ${t.id === target.value?.id ? "selected-marker" : ""}" style="--marker:${color}">✣</div>`,
             iconSize: [38, 38],
             iconAnchor: [19, 19],
           }),
-        }).addTo(map);
-        targetLayer.bindTooltip(t.name, {
+        }).addTo(layers);
+        marker.bindTooltip(tooltip(t.name), {
           permanent: true,
           direction: "top",
           offset: [0, -21],
           className: "map-label",
         });
-        targetLayer.on("click", () => {
-          selected.value = t.id;
-          showToast("已选中无人机，可在右侧查看本体属性");
-        });
-        linkLayer = L.polyline([center, loc], {
-          color,
-          weight: 2,
-          dashArray: "6 7",
-        }).addTo(map);
-        linkLayer.bindTooltip(`${t.distance.toFixed(1)} 米`, {
-          permanent: true,
-          direction: "center",
-          className: "distance-label",
-        });
-        if (follow.value) map.panTo(loc, { animate: true, duration: 0.4 });
+        marker.on("click", () => chooseTarget(t.id));
       }
+      if (target.value && assessment.value) {
+        const a = assessment.value;
+        L.polyline(
+          [
+            [target.value.lat, target.value.lon],
+            [a.position_lat, a.position_lon],
+          ],
+          { color: a.color, weight: 2, dashArray: "6 7" },
+        )
+          .addTo(layers)
+          .bindTooltip(`${a.distance.toFixed(1)} 米`, {
+            permanent: true,
+            direction: "center",
+            className: "distance-label",
+          });
+      }
+      pathLayer?.remove();
+      pathLayer = null;
+      if (mode.value === "replay" && records.value.length > 1)
+        pathLayer = L.polyline(
+          records.value.map((r) => [r.lat, r.lon]),
+          { color: "#527ba0", weight: 2, opacity: 0.5 },
+        ).addTo(map);
+      if (!initialized) {
+        initialized = true;
+        locate();
+      }
+      if (follow.value && target.value)
+        map.panTo([target.value.lat, target.value.lon], {
+          animate: true,
+          duration: 0.3,
+        });
     }
     function locate() {
-      if (!map || !data.value) return;
-      const p = data.value.position;
-      const bounds = L.latLng(p.lat, p.lon).toBounds(
-        data.value.thresholds[2] * 2.5,
-      );
-      if (target.value) bounds.extend([target.value.lat, target.value.lon]);
-      map.fitBounds(bounds, { padding: [40, 40] });
+      const coords = [
+        ...(data.value?.positions || []),
+        ...(data.value?.targets || []),
+      ].map((p) => [p.lat, p.lon]);
+      if (coords.length)
+        map.fitBounds(L.latLngBounds(coords).pad(0.3), {
+          padding: [45, 45],
+          maxZoom: 17,
+        });
+    }
+    function normalizeSelection() {
+      if (!data.value?.targets.find((t) => t.id === selected.value))
+        selected.value = data.value?.targets[0]?.id || "";
+      if (!data.value?.positions.find((p) => p.id === positionId.value))
+        positionId.value = data.value?.positions[0]?.id || "";
+    }
+    async function chooseTarget(id) {
+      selected.value = id;
+      trace.value = null;
+      draw();
+      if (tab.value === "instance")
+        try {
+          await loadInstance();
+        } catch (e) {
+          error.value = e.message;
+        }
+    }
+    function choosePosition(id) {
+      positionId.value = id;
+      trace.value = null;
+      draw();
+    }
+    async function inspect(entry) {
+      selected.value = entry.target_id;
+      trace.value = entry;
+      draw();
+      try {
+        const result = await request(`/api/assessments/${entry.id}`);
+        if (trace.value?.id === entry.id) trace.value = result;
+      } catch (e) {
+        notice(e.message);
+      }
     }
     async function poll() {
-      if (polling || cancelled) return;
+      if (polling || closed) return;
       polling = true;
       try {
-        const [s, h] = await Promise.all([
-          get("/api/situation"),
-          get("/api/health"),
+        const live = mode.value === "live";
+        const [h, s] = await Promise.all([
+          request("/api/health"),
+          live ? request("/api/situation") : Promise.resolve(null),
         ]);
-        if (cancelled) return;
-        data.value = s;
+        if (closed) return;
         health.value = h;
-        error.value = "";
-        if (!selected.value && s.targets.length)
-          selected.value = s.targets[0].id;
-        draw();
-        if (tab.value === "instance") await loadInstance();
+        if (s && mode.value === "live") {
+          data.value = s;
+          normalizeSelection();
+          draw();
+          if (tab.value === "instance") await loadInstance();
+        }
+        if (s && mode.value === "live") error.value = "";
       } catch (e) {
-        if (!cancelled) error.value = e.message;
+        error.value = e.message;
       } finally {
         loading.value = false;
         polling = false;
+      }
+    }
+    function stopPlayback() {
+      clearInterval(playTimer);
+      playing.value = false;
+    }
+    async function seek() {
+      if (!records.value.length) return;
+      const token = ++snapshotToken;
+      replayBusy.value = true;
+      try {
+        const result = await request(
+          `/api/situation?at=${encodeURIComponent(records.value[frame.value].timestamp)}`,
+        );
+        if (token !== snapshotToken || mode.value !== "replay") return;
+        data.value = result;
+        normalizeSelection();
+        trace.value = null;
+        draw();
+        error.value = "";
+        if (tab.value === "instance") await loadInstance();
+      } catch (e) {
+        if (token === snapshotToken) error.value = e.message;
+      } finally {
+        if (token === snapshotToken) replayBusy.value = false;
+      }
+    }
+    async function loadHistory() {
+      stopPlayback();
+      snapshotToken++;
+      const id = target.value?.id;
+      if (!id) {
+        notice("请先等待无人机观测");
+        return;
+      }
+      mode.value = "loading";
+      trace.value = null;
+      try {
+        const result = await request(
+          `/api/history?target_id=${encodeURIComponent(id)}&limit=1000`,
+        );
+        if (!result.records.length) {
+          mode.value = "live";
+          notice("该目标没有保留的历史观测");
+          return;
+        }
+        records.value = result.records;
+        historyTarget.value = id;
+        frame.value = 0;
+        mode.value = "replay";
+        await seek();
+      } catch (e) {
+        mode.value = "live";
+        error.value = e.message;
+      }
+    }
+    function togglePlayback() {
+      if (playing.value) {
+        stopPlayback();
+        return;
+      }
+      if (frame.value >= records.value.length - 1) frame.value = 0;
+      playing.value = true;
+      seek();
+      playTimer = setInterval(() => {
+        if (replayBusy.value) return;
+        if (frame.value >= records.value.length - 1) {
+          stopPlayback();
+          return;
+        }
+        frame.value++;
+        seek();
+      }, 650);
+    }
+    async function live() {
+      stopPlayback();
+      snapshotToken++;
+      mode.value = "live";
+      trace.value = null;
+      pathLayer?.remove();
+      pathLayer = null;
+      await poll();
+    }
+    async function openConfig() {
+      try {
+        const result = await request("/api/config");
+        draft.value = result.config;
+        configVersion.value = result.version;
+        configError.value = "";
+        configOpen.value = true;
+      } catch (e) {
+        error.value = e.message;
+      }
+    }
+    function addPosition() {
+      if (draft.value.positions.length >= 10) return;
+      let i = 1;
+      while (
+        draft.value.positions.some(
+          (p) => p.id === `pos${String(i).padStart(3, "0")}`,
+        )
+      )
+        i++;
+      draft.value.positions.push({
+        id: `pos${String(i).padStart(3, "0")}`,
+        name: `新增阵地${i}`,
+        lon: draft.value.positions[0].lon,
+        lat: draft.value.positions[0].lat,
+      });
+    }
+    async function saveConfig() {
+      saving.value = true;
+      configError.value = "";
+      try {
+        const result = await request("/api/config", false, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            expected_version: configVersion.value,
+            config: draft.value,
+          }),
+        });
+        configVersion.value = result.version;
+        configOpen.value = false;
+        notice("配置已保存，从下一条观测开始生效；历史结果保持原样");
+        await poll();
+      } catch (e) {
+        configError.value = e.message;
+      } finally {
+        saving.value = false;
       }
     }
     async function copy() {
@@ -195,39 +430,38 @@ createApp({
         await navigator.clipboard.writeText(
           tab.value === "definition" ? definition.value : instance.value,
         );
-        copied.value = true;
-        setTimeout(() => (copied.value = false), 1600);
+        notice("已复制TTL文本");
       } catch {
-        showToast("当前浏览器不支持自动复制，请选中文本手动复制");
+        notice("请选中文本手动复制");
       }
     }
     onMounted(async () => {
       await nextTick();
-      map = L.map("map", {
-        zoomControl: false,
-        attributionControl: true,
-      }).setView([39.9045, 116.4077], 17);
-      L.control.zoom({ position: "bottomright" }).addTo(map);
-      const tileUrl =
-        import.meta.env.VITE_TILE_URL ||
-        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
-      const tileAttribution =
-        import.meta.env.VITE_TILE_ATTRIBUTION ||
-        "&copy; OpenStreetMap contributors";
-      const tiles = L.tileLayer(tileUrl, {
-        maxZoom: 19,
-        attribution: tileAttribution,
-      }).addTo(map);
-      tiles.on(
-        "tileerror",
-        () =>
-          (mapMessage.value =
-            "底图暂不可用，目标和阵地仍可查看；可在配置中更换底图。"),
+      map = L.map("map", { zoomControl: false }).setView(
+        [39.9045, 116.4077],
+        16,
       );
+      layers = L.layerGroup().addTo(map);
+      L.control.zoom({ position: "bottomright" }).addTo(map);
+      L.tileLayer(
+        import.meta.env.VITE_TILE_URL ||
+          "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+          maxZoom: 19,
+          attribution:
+            import.meta.env.VITE_TILE_ATTRIBUTION ||
+            "&copy; OpenStreetMap contributors",
+        },
+      )
+        .addTo(map)
+        .on(
+          "tileerror",
+          () => (mapMessage.value = "底图暂不可用，目标和阵地仍可显示。"),
+        );
       try {
         const [o, ttl] = await Promise.all([
-          get("/api/ontology"),
-          get("/api/ontology/ttl", true),
+          request("/api/ontology"),
+          request("/api/ontology/ttl", true),
         ]);
         items.value = o.items;
         definition.value = ttl;
@@ -238,44 +472,60 @@ createApp({
       timer = setInterval(poll, 1000);
     });
     onUnmounted(() => {
-      cancelled = true;
+      closed = true;
+      snapshotToken++;
       clearInterval(timer);
+      stopPlayback();
       map?.remove();
     });
     return {
-      tab,
       data,
-      target,
       health,
+      target,
+      point,
+      assessment,
+      explanation,
+      ranked,
       groups,
+      tab,
       definition,
       instance,
       error,
       toast,
       status,
       formatTime,
-      mapMessage,
+      mode,
       loading,
       follow,
+      mapMessage,
+      selected,
+      positionId,
+      trace,
+      records,
+      historyTarget,
+      frame,
+      playing,
+      replayBusy,
+      configOpen,
+      draft,
+      configVersion,
+      saving,
+      configError,
+      chooseTarget,
+      choosePosition,
+      inspect,
       selectTab,
       locate,
       copy,
-      copied,
+      loadHistory,
+      seek,
+      togglePlayback,
+      stopPlayback,
+      live,
+      openConfig,
+      addPosition,
+      saveConfig,
     };
   },
-  template: `
-  <div class="workspace">
-    <header><div class="brand-mark">A<span>O</span></div><div class="brand">AirOntology<small>无人机本体 · 实时观测工作台</small></div><span class="edition">DEMO / V1.0</span><div class="header-right"><span class="status-dot" :class="{online:status==='实时更新'}"></span>{{status}}<span class="divider"></span><span class="muted">单目标 · 单阵地</span></div></header>
-    <main>
-      <div class="page-title"><div><div class="eyebrow">ONTOLOGY IN ACTION</div><h1>从实时位置，到可查询的业务事实</h1><p>在地图中观察目标，在本体中理解对象、属性与关系。</p></div><div class="pipeline">MQTT <b>→</b> Python <b>→</b> RDF / OWL <b>→</b> Fuseki <b>→</b> WebGIS</div></div>
-      <div v-if="error" class="alert" role="alert">{{error}}</div>
-      <div class="overview"><div><span class="metric-label">监测目标</span><strong>{{data?.targets.length ?? '—'}}<small>架</small></strong></div><div><span class="metric-label">固定阵地</span><strong>{{data ? '1':'—'}}<small>处</small></strong></div><div><span class="metric-label">当前水平距离</span><strong>{{target ? target.distance.toFixed(1) : '—'}}<small>米</small></strong></div><div><span class="metric-label">距离关注等级</span><strong class="level-metric" :style="{color:target?.color}">{{target?.level_label || '等待数据'}}</strong></div><div class="dependency"><span :class="{'connected':health?.mqtt.connected}">● MQTT {{health?.mqtt.connected ? '已连接':'未连接'}}</span><span :class="{'connected':health?.fuseki}">● Fuseki {{health?.fuseki ? '可用':'未连接'}}</span></div></div>
-      <section class="situation-grid">
-        <div class="panel map-panel"><div class="panel-heading"><h2><span class="section-index">01</span> 实时态势</h2><div><label class="follow"><input type="checkbox" v-model="follow"> 跟随目标</label><button @click="locate">定位全景 ↗</button></div></div><div class="map-wrap"><div id="map"></div><div class="map-badge"><span class="status-dot" :class="{online:status==='实时更新'}"></span>{{status}}<span v-if="target">· {{formatTime(target.timestamp)}}</span></div><div v-if="mapMessage" class="tile-notice">{{mapMessage}}</div><div class="legend"><span><i style="background:#e45555"></i>高 ≤{{data?.thresholds[0] ?? 100}}m</span><span><i style="background:#ed9b32"></i>中 ≤{{data?.thresholds[1] ?? 200}}m</span><span><i style="background:#3899ce"></i>低 ≤{{data?.thresholds[2] ?? 300}}m</span><span><i style="background:#5aab87"></i>阈值外</span></div></div><div class="map-caption">WGS84 坐标 · 水平距离 / 米 <span>仅按距离分级，不代表综合威胁判断</span></div></div>
-        <aside class="panel details"><div class="panel-heading"><h2><span class="section-index">02</span> 对象详情</h2><span class="tag">实例</span></div><template v-if="target"><div class="object-title"><div class="object-icon">✣</div><div><h3>{{target.name}}</h3><span>BlueDevice / 无人机目标</span></div></div><div class="object-state" :style="{color:target.stale?'#7b8794':target.color}">● {{target.stale ? '观测数据已过期' : target.level_label+' · 实时观测'}}</div><dl><div><dt>经度</dt><dd>{{target.lon.toFixed(6)}}°</dd></div><div><dt>纬度</dt><dd>{{target.lat.toFixed(6)}}°</dd></div><div><dt>速度</dt><dd>{{target.speed.toFixed(1)}} m/s</dd></div><div><dt>水平距离</dt><dd>{{target.distance.toFixed(1)}} m</dd></div><div><dt>关联阵地</dt><dd>{{data.position.name}}</dd></div><div><dt>观测时间</dt><dd>{{formatTime(target.timestamp)}}</dd></div></dl><div class="relation-card"><span>对象关系</span><div>{{target.name}} <b>→</b> {{data.position.name}}</div><small>monitoredAgainst · 关联阵地</small></div><button class="wide-button" @click="selectTab('instance')">查看这个对象的 RDF 事实 ↓</button></template><div v-else class="empty"><div>⌁</div><b>{{loading?'正在连接数据服务':'等待第一条航迹'}}</b><p>启动模拟器后，将自动显示对象属性和关系。</p></div></aside>
-      </section>
-      <section class="panel ontology-panel"><div class="panel-heading ontology-heading"><h2><span class="section-index">03</span> 本体与事实</h2><div class="tabs"><button :class="{active:tab==='structure'}" @click="selectTab('structure')">中文结构</button><button :class="{active:tab==='definition'}" @click="selectTab('definition')">本体定义 TTL</button><button :class="{active:tab==='instance'}" @click="selectTab('instance')">当前实例 TTL</button></div><button v-if="tab!=='structure'" @click="copy" :disabled="tab==='instance'&&!instance">{{copied?'已复制':'复制文本'}}</button></div><div v-if="tab==='structure'" class="structure-grid"><div v-for="group in groups" :key="group.kind"><div class="group-heading">{{group.kind}}<span>{{group.items.length}}</span></div><div v-for="item in group.items" :key="item.id" class="schema-row"><div><b>{{item.label}}</b><code>{{item.id}}</code></div><small v-if="item.comment">{{item.comment}}</small><small v-else-if="item.range">取值：{{item.range}}</small></div></div></div><div v-else class="code-section"><div class="code-note">{{tab==='definition'?'模型定义（TBox）：描述有哪些类、属性和关系，位置更新不会修改此定义。':'实例事实（ABox）：由 MQTT 数据和 Python 计算结果更新；从 Fuseki 查询，并附关联阵地和等级。'}}</div><pre v-if="tab==='definition'||instance"><code>{{tab==='definition'?definition:instance}}</code></pre><div v-else class="empty">暂无目标实例，请先启动模拟器。</div></div><div class="ontology-footer"><span><b>学习提示</b> 类是“对象的类别”；实例是“具体对象”；数据属性连接数值，对象属性连接另一个对象。</span><span>计算：Python · 表达：RDF / OWL · 查询：SPARQL</span></div></section>
-      <footer>AirOntology <span>从一条观测开始，理解本体。</span><span>演示环境 · 只保留最新状态 · 不启用自动推理</span></footer>
-    </main><div v-if="toast" class="toast" role="status">{{toast}}</div>
-  </div>`,
+  template,
 }).mount("#app");

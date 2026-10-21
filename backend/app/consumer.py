@@ -39,8 +39,6 @@ class Consumer:
             if len(message.payload) > 16384:
                 raise ValueError('报文超过16KB')
             track = Track.model_validate_json(message.payload)
-            if track.target_id == self.settings.position_id:
-                raise ValueError('目标编号不能与阵地编号相同')
             self.queue.put_nowait(track)
         except queue.Full:
             self.dropped += 1

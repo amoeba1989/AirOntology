@@ -17,7 +17,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: pip install -r backend/requirements-dev.txt
       - run: PYTHONPATH=backend python -m pytest backend/tests -q
-      - run: npm ci && npm run build
+      - run: npm ci && npm test && npm run build
         working-directory: frontend
       - run: cp .env.example .env && docker compose config --quiet
       - run: docker compose build && docker compose up -d --wait --wait-timeout 180

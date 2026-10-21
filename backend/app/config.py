@@ -20,6 +20,18 @@ class Settings(BaseSettings):
     low_threshold: float = 300
     ontology_dir: Path = Path(__file__).resolve().parents[2] / 'ontology'
     queue_size: int = 1000
+    history_limit: int = 300
+
+    def initial_config(self):
+        from .models import Position, RuntimeConfig
+        from .domain import GEOD
+        lon, lat, _ = GEOD.fwd(self.position_lon, self.position_lat, 90, 450)
+        second_id = "pos002" if self.position_id != "pos002" else "pos003"
+        return RuntimeConfig(positions=[
+            Position(id=self.position_id, name=self.position_name, lon=self.position_lon, lat=self.position_lat),
+            Position(id=second_id, name="二号阵地", lon=lon, lat=lat),
+        ], high_threshold=self.high_threshold, medium_threshold=self.medium_threshold,
+           low_threshold=self.low_threshold, stale_seconds=self.stale_seconds, history_limit=self.history_limit)
 
     @model_validator(mode='after')
     def validate_config(self):
