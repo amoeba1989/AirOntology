@@ -29,7 +29,15 @@ sudo chown "$USER":"$(id -gn)" /opt/airontology
 
 确保GitHub runner可以通过ECS的公网地址/域名访问SSH端口。若安全组只允许你的Mac IP访问，GitHub runner也会被阻止，需按实际网络方案调整规则或使用受控的自托管runner。
 
-## 3. 创建专用SSH密钥
+## 3. 选择登录方式
+
+支持密码和SSH密钥两种方式，任选其一。若同时配置，优先使用密钥。
+
+**密码方式：** 将ECS登录密码保存为GitHub仓库Secret `ECS_PASSWORD`，不需要生成密钥。ECS需已允许所选用户通过密码SSH登录；工作流不会自动修改服务器SSH认证策略。
+
+**密钥方式：** 按下面步骤生成专用密钥，并保存为 `ECS_SSH_KEY`。
+
+### 创建专用SSH密钥
 
 在Mac终端生成专用于此部署的密钥，不覆盖已有密钥：
 
@@ -54,7 +62,7 @@ chmod 600 ~/.ssh/authorized_keys
 ssh -i ~/.ssh/airontology_actions 用户@ECS地址
 ```
 
-工作流当前使用无口令的专用密钥，不支持带私钥口令的交互解锁。
+密钥方式使用无口令的专用密钥，不支持带私钥口令的交互解锁；密码方式通过sshpass环境变量传递，不写入命令行参数或仓库。
 
 ## 4. 配置GitHub Secrets
 
@@ -64,10 +72,11 @@ ssh -i ~/.ssh/airontology_actions 用户@ECS地址
 | --- | --- |
 | ECS_HOST | ECS公网IPv4地址或域名，不含http://、端口或用户名 |
 | ECS_USER | SSH登录用户，例如root或ubuntu |
-| ECS_SSH_KEY | 专用SSH私钥完整内容，包含BEGIN/END行 |
+| ECS_SSH_KEY | 密钥方式填写专用SSH私钥完整内容，包含BEGIN/END行 |
+| ECS_PASSWORD | 密码方式填写ECS登录密码；与ECS_SSH_KEY任选一项 |
 | ECS_KNOWN_HOSTS | 经核实的服务器SSH主机公钥条目 |
 
-Mac上复制私钥到剪贴板后直接粘贴进ECS_SSH_KEY：
+Mac上密钥方式复制私钥到剪贴板后直接粘贴进ECS_SSH_KEY：
 
 ```bash
 pbcopy < ~/.ssh/airontology_actions
@@ -165,4 +174,4 @@ docker compose --project-name airontology --project-directory "$release" \
 
 ## 9. 验证范围
 
-部署脚本提供4项假Docker流程测试，覆盖正常发布、失败恢复、架构不匹配和首次发布；它们不代替真实ECS测试。真正部署需要配置上述Secrets后手动运行，当前没有执行或宣称完成服务器部署。
+部署脚本提供4项假Docker流程测试，覆盖正常发布、失败恢复、架构不匹配和首次发布；它们不代替真实ECS测试。真正部署需要配置ECS_HOST、ECS_USER、ECS_KNOWN_HOSTS及一种认证Secret后手动运行，当前没有执行或宣称完成服务器部署。

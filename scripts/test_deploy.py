@@ -87,5 +87,38 @@ class DeploymentFlow(unittest.TestCase):
         self.assertTrue((root/'current').is_symlink())
 
 
+class UploadAuthentication(unittest.TestCase):
+    def test_key_and_password_modes(self):
+        for use_key in (True,False):
+            with self.subTest(use_key=use_key), tempfile.TemporaryDirectory(prefix='airupload-') as directory:
+                root=Path(directory); binary=root/'bin';binary.mkdir()
+                (root/'bundle.tar').write_bytes(b'test bundle')
+                (root/'scripts').mkdir();(root/'scripts/deploy-ecs.sh').write_text('true')
+                log=root/'auth.jsonl'
+                mock="""#!/usr/bin/env python3
+import json,os,sys
+with open(os.environ['MOCK_LOG'],'a') as f:
+ f.write(json.dumps({'command':os.path.basename(sys.argv[0]),'args':sys.argv[1:],'password_in_env':bool(os.getenv('SSHPASS'))})+'\\n')
+"""
+                for name in ('ssh','scp'):
+                    script=binary/name;script.write_text(mock);script.chmod(0o755)
+                helper=binary/'sshpass';helper.write_text('#!/bin/bash\nshift\nexec "$@"\n');helper.chmod(0o755)
+                result=subprocess.run(['bash',str(ROOT/'scripts/publish-ecs.sh')],cwd=root,
+                    env={**os.environ,'PATH':str(binary)+':'+os.environ['PATH'],'MOCK_LOG':str(log),
+                        'ECS_HOST':'example.test','ECS_USER':'root','ECS_KNOWN_HOSTS':'test host key',
+                        'ECS_SSH_KEY':'test-key-only' if use_key else '',
+                        'ECS_PASSWORD':'' if use_key else 'test-password-only',
+                        'RELEASE_ID':RELEASE_ID,'TARGET_ARCH':'amd64','RUN_SIMULATOR':'true'},
+                    capture_output=True,text=True)
+                self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+                commands=[json.loads(line) for line in log.read_text().splitlines()]
+                self.assertEqual([c['command'] for c in commands],['ssh','scp','ssh'])
+                self.assertTrue(all(c['password_in_env'] is not use_key for c in commands))
+                for c in commands:
+                    self.assertNotIn('test-password-only',' '.join(c['args']))
+                    self.assertIn('StrictHostKeyChecking=yes',c['args'])
+                self.assertNotIn('test-password-only',result.stdout+result.stderr)
+
+
 if __name__=='__main__':
     unittest.main()

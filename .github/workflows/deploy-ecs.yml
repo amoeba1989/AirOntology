@@ -34,11 +34,15 @@ jobs:
           ECS_HOST: ${{ secrets.ECS_HOST }}
           ECS_USER: ${{ secrets.ECS_USER }}
           ECS_SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
+          ECS_PASSWORD: ${{ secrets.ECS_PASSWORD }}
           ECS_KNOWN_HOSTS: ${{ secrets.ECS_KNOWN_HOSTS }}
         run: |
-          for name in ECS_HOST ECS_USER ECS_SSH_KEY ECS_KNOWN_HOSTS; do
+          for name in ECS_HOST ECS_USER ECS_KNOWN_HOSTS; do
             if [[ -z "${!name}" ]]; then echo "Missing repository secret: $name"; exit 1; fi
           done
+          if [[ -z "$ECS_SSH_KEY" && -z "$ECS_PASSWORD" ]]; then
+            echo 'Missing ECS_SSH_KEY or ECS_PASSWORD secret'; exit 1
+          fi
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -78,11 +82,18 @@ jobs:
           cp deploy/mosquitto.conf bundle/deploy/mosquitto.conf
           cp .env.example bundle/.env.example
           tar -cf bundle.tar -C bundle .
+      - name: Install password login helper
+        run: |
+          if ! command -v sshpass >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y sshpass
+          fi
       - name: Upload and deploy through verified SSH
         env:
           ECS_HOST: ${{ secrets.ECS_HOST }}
           ECS_USER: ${{ secrets.ECS_USER }}
           ECS_SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
+          ECS_PASSWORD: ${{ secrets.ECS_PASSWORD }}
           ECS_KNOWN_HOSTS: ${{ secrets.ECS_KNOWN_HOSTS }}
           ECS_PORT: ${{ vars.ECS_PORT }}
           ECS_DEPLOY_PATH: ${{ vars.ECS_DEPLOY_PATH }}
