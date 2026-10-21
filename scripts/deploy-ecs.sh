@@ -104,7 +104,7 @@ echo "[$(date -Is)] 开始启动服务并等待健康检查"
 compose_at "$RELEASE" up -d --no-build --pull never --wait --wait-timeout 900
 # 在应用容器内检查JSON健康状态，不依赖ECS公网访问应用端口。
 compose_at "$RELEASE" exec -T app python -c \
-  'import json,urllib.request; d=json.load(urllib.request.urlopen("http://127.0.0.1:8000/api/health")); assert d["status"]=="ok",d; print("应用和依赖健康检查通过")'
+  'import json,urllib.request; d=json.load(urllib.request.urlopen("http://127.0.0.1:8000/api/health")); assert d["status"]=="ok",d; print("应用和依赖健康检查通过")' </dev/null
 if [[ "$DEMO" == true ]]; then
   compose_at "$RELEASE" --profile demo up -d --no-build --pull never simulator
   touch "$RELEASE/demo.enabled"

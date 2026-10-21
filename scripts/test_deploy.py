@@ -16,6 +16,7 @@ import json,os,sys
 from pathlib import Path
 args=sys.argv[1:]
 with open(os.environ['MOCK_LOG'],'a') as f:f.write(json.dumps(args)+'\\n')
+if 'exec' in args and os.getenv('MOCK_DRAIN_STDIN')=='1':sys.stdin.read()
 if args[0]=='info':print(os.getenv('MOCK_ARCH','x86_64'))
 if 'ps' in args and '-aq' in args:print('old-fuseki-container')
 if 'cp' in args:
@@ -27,7 +28,7 @@ if 'up' in args and os.getenv('MOCK_FAIL')=='1':
 
 
 class DeploymentFlow(unittest.TestCase):
-    def exercise(self, *, fail=False, arch='x86_64', previous=True):
+    def exercise(self, *, fail=False, arch='x86_64', previous=True, stream=False):
         temp=tempfile.TemporaryDirectory(prefix='airdeploy-')
         self.addCleanup(temp.cleanup)
         root=Path(temp.name)
@@ -48,11 +49,12 @@ class DeploymentFlow(unittest.TestCase):
             (old/'demo.enabled').touch()
             (root/'current').symlink_to(old)
         log=root/'commands.jsonl'
-        result=subprocess.run(['bash',str(ROOT/'scripts/deploy-ecs.sh'),str(root),RELEASE_ID,
+        command=['bash','-s','--'] if stream else ['bash',str(ROOT/'scripts/deploy-ecs.sh')]
+        result=subprocess.run(command+[str(root),RELEASE_ID,
             hashlib.sha256(package.read_bytes()).hexdigest(),'amd64','true'],
             env={**os.environ,'PATH':str(binary)+':'+os.environ['PATH'],'MOCK_LOG':str(log),
-                 'MOCK_FAIL':'1' if fail else '0','MOCK_ARCH':arch,'CANDIDATE_ID':RELEASE_ID},
-            text=True,capture_output=True)
+                 'MOCK_DRAIN_STDIN':'1' if stream else '0','MOCK_FAIL':'1' if fail else '0','MOCK_ARCH':arch,'CANDIDATE_ID':RELEASE_ID},
+            text=True,capture_output=True,input=(ROOT/'scripts/deploy-ecs.sh').read_text() if stream else None)
         commands=[json.loads(line) for line in log.read_text().splitlines()]
         return root,old,result,commands
 
@@ -67,6 +69,13 @@ class DeploymentFlow(unittest.TestCase):
         self.assertLess(load,stop)
         self.assertFalse(any('down' in c or 'prune' in c for c in commands))
         self.assertFalse((root/'incoming'/RELEASE_ID/'bundle.tar').exists())
+
+    def test_ssh_stdin_stream_reaches_simulator_and_release_switch(self):
+        root,old,result,commands=self.exercise(stream=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertEqual((root/'current').resolve().name,RELEASE_ID)
+        self.assertTrue(any('up' in c and 'simulator' in c for c in commands))
+        self.assertTrue((root/'current'/'demo.enabled').exists())
 
     def test_failed_candidate_restores_previous_configuration(self):
         root,old,result,commands=self.exercise(fail=True)
