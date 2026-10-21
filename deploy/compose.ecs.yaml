@@ -26,9 +26,12 @@ services:
       - -m
       - ok
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 10s
+      retries: 30
   fuseki:
+    environment:
+      JVM_ARGS: ${FUSEKI_JVM_ARGS:--Xms64m -Xmx512m -XX:ActiveProcessorCount=2}
+    mem_limit: ${FUSEKI_MEMORY_LIMIT:-1g}
     restart: unless-stopped
     volumes:
     - fuseki-data:/data
@@ -39,9 +42,9 @@ services:
       - -fsS
       - http://127.0.0.1:3030/$$/ping
       interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
+      timeout: 10s
+      retries: 60
+      start_period: 300s
     image: ${FUSEKI_IMAGE:?缺少FUSEKI_IMAGE}
   app:
     image: ${APP_IMAGE:?缺少APP_IMAGE}
@@ -75,9 +78,9 @@ services:
       - import urllib.request,json; d=json.load(urllib.request.urlopen('http://127.0.0.1:8000/api/health'));
         assert d['status']=='ok'
       interval: 15s
-      timeout: 10s
-      retries: 5
-      start_period: 20s
+      timeout: 15s
+      retries: 30
+      start_period: 90s
   simulator:
     image: ${APP_IMAGE:?缺少APP_IMAGE}
     profiles:

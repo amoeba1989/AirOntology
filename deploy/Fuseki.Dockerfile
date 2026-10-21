@@ -12,5 +12,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 WORKDIR /opt/fuseki
 USER fuseki
 ENV FUSEKI_BASE=/data
+ENV JVM_ARGS="-Xms64m -Xmx512m -XX:ActiveProcessorCount=2"
 EXPOSE 3030
 CMD ["sh", "-c", "mkdir -p /data/database && exec ./fuseki-server --update --tdb2 --loc=/data/database /counteruav"]

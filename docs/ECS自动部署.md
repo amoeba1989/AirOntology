@@ -175,3 +175,14 @@ docker compose --project-name airontology --project-directory "$release" \
 ## 9. 验证范围
 
 部署脚本提供4项假Docker流程测试，覆盖正常发布、失败恢复、架构不匹配和首次发布；它们不代替真实ECS测试。真正部署需要配置ECS_HOST、ECS_USER、ECS_KNOWN_HOSTS及一种认证Secret后手动运行，当前没有执行或宣称完成服务器部署。
+
+
+## 10. 小规格ECS启动超时
+
+已根据真实部署日志修正ECS启动等待预算：Compose部署及恢复等待上限由180秒调整为900秒。Fuseki健康检查提供300秒启动宽限期，再进行重试；小规格或繁忙服务器无需在3分钟时被提前判定失败。
+
+Fuseki默认JVM参数改为 `-Xms64m -Xmx512m -XX:ActiveProcessorCount=2`，容器内存上限默认1g，可在shared/.env通过FUSEKI_JVM_ARGS与FUSEKI_MEMORY_LIMIT覆盖。4GB是旧配置的最大堆上限，不表示故障时实际已用4GB，也不能据此认定OOM。
+
+失败日志现在包含内存、负载、磁盘、容器资源和各服务健康检查结果。若900秒仍无法就绪，应根据实际资源负载、健康检查日志和容器日志继续判断，不能仅无限延长等待时间。
+
+修复后从Actions页面新建一次main分支的Run workflow；旧任务的Re-run jobs仍使用旧提交，不会采用新配置。部署未成功之前，不会生成current成功发布链接。

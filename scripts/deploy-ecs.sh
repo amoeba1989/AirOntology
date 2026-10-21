@@ -51,9 +51,17 @@ recover() {
   trap - ERR
   if [[ "$RESTORE_NEEDED" == true ]]; then
     echo '部署失败，打印候选服务日志并尝试恢复上一发布（不回滚数据库）'
-    compose_at "$RELEASE" --profile demo logs --tail=60 app fuseki || true
+    compose_at "$RELEASE" --profile demo ps -a || true
+    docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' || true
+    for service in mqtt fuseki app; do
+      container=$(compose_at "$RELEASE" ps -aq "$service")
+      if [[ -n "$container" ]]; then
+        docker inspect --format '{{json .State.Health}}' "$container" || true
+      fi
+    done
+    compose_at "$RELEASE" --profile demo logs --tail=100 mqtt app fuseki || true
     if [[ -n "$PREVIOUS" && -f "$PREVIOUS/compose.ecs.yaml" ]]; then
-      compose_at "$PREVIOUS" up -d --no-build --pull never --wait --wait-timeout 180 || true
+      compose_at "$PREVIOUS" up -d --no-build --pull never --wait --wait-timeout 900 || true
       if [[ -f "$PREVIOUS/demo.enabled" ]]; then
         compose_at "$PREVIOUS" --profile demo up -d --no-build --pull never simulator || true
       fi
@@ -65,6 +73,10 @@ recover() {
   exit "$code"
 }
 trap recover ERR
+echo 'ECS资源概况：'
+free -h || true
+uptime || true
+df -h "$ROOT" || true
 RESTORE_NEEDED=true
 # 保留原airontology项目和命名数据卷，先停写再备份TDB2。
 compose_at "$RELEASE" --profile demo stop simulator app fuseki
@@ -76,7 +88,7 @@ if [[ -n "$(compose_at "$RELEASE" ps -aq fuseki)" ]]; then
   compose_at "$RELEASE" cp fuseki:/data "$BACKUP/fuseki-data"
   echo "已保存停止写入后的Fuseki备份：$BACKUP/fuseki-data"
 fi
-compose_at "$RELEASE" up -d --no-build --pull never --wait --wait-timeout 180
+compose_at "$RELEASE" up -d --no-build --pull never --wait --wait-timeout 900
 # 在应用容器内检查JSON健康状态，不依赖ECS公网访问应用端口。
 compose_at "$RELEASE" exec -T app python -c \
   'import json,urllib.request; d=json.load(urllib.request.urlopen("http://127.0.0.1:8000/api/health")); assert d["status"]=="ok",d; print("应用和依赖健康检查通过")'
