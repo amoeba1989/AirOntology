@@ -1,0 +1,102 @@
+# 由GitHub构建镜像，ECS仅导入和运行；不要在此添加build。
+name: airontology
+x-app-env:
+  MQTT_HOST: mqtt
+  MQTT_PORT: 1883
+  MQTT_TOPIC: counteruav/track/blue
+  POSITION_ID: ${POSITION_ID:-pos001}
+  POSITION_NAME: ${POSITION_NAME:-一号阵地}
+  POSITION_LON: ${POSITION_LON:-116.4077}
+  POSITION_LAT: ${POSITION_LAT:-39.9045}
+services:
+  mqtt:
+    image: ${MQTT_IMAGE:?缺少MQTT_IMAGE}
+    restart: unless-stopped
+    volumes:
+    - ./deploy/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    - mqtt-data:/mosquitto/data
+    healthcheck:
+      test:
+      - CMD
+      - mosquitto_pub
+      - -h
+      - 127.0.0.1
+      - -t
+      - healthcheck
+      - -m
+      - ok
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  fuseki:
+    restart: unless-stopped
+    volumes:
+    - fuseki-data:/data
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -fsS
+      - http://127.0.0.1:3030/$$/ping
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    image: ${FUSEKI_IMAGE:?缺少FUSEKI_IMAGE}
+  app:
+    image: ${APP_IMAGE:?缺少APP_IMAGE}
+    restart: unless-stopped
+    environment:
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      MQTT_TOPIC: counteruav/track/blue
+      POSITION_ID: ${POSITION_ID:-pos001}
+      POSITION_NAME: ${POSITION_NAME:-一号阵地}
+      POSITION_LON: ${POSITION_LON:-116.4077}
+      POSITION_LAT: ${POSITION_LAT:-39.9045}
+      FUSEKI_URL: http://fuseki:3030/counteruav
+      STALE_SECONDS: ${STALE_SECONDS:-5}
+      HISTORY_LIMIT: ${HISTORY_LIMIT:-300}
+      HIGH_THRESHOLD: ${HIGH_THRESHOLD:-100}
+      MEDIUM_THRESHOLD: ${MEDIUM_THRESHOLD:-200}
+      LOW_THRESHOLD: ${LOW_THRESHOLD:-300}
+    ports:
+    - ${BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-8092}:8000
+    depends_on:
+      mqtt:
+        condition: service_healthy
+      fuseki:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request,json; d=json.load(urllib.request.urlopen('http://127.0.0.1:8000/api/health'));
+        assert d['status']=='ok'
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+  simulator:
+    image: ${APP_IMAGE:?缺少APP_IMAGE}
+    profiles:
+    - demo
+    restart: unless-stopped
+    command:
+    - python
+    - /app/simulator/main.py
+    environment:
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      MQTT_TOPIC: counteruav/track/blue
+      POSITION_ID: ${POSITION_ID:-pos001}
+      POSITION_NAME: ${POSITION_NAME:-一号阵地}
+      POSITION_LON: ${POSITION_LON:-116.4077}
+      POSITION_LAT: ${POSITION_LAT:-39.9045}
+    depends_on:
+      app:
+        condition: service_healthy
+volumes:
+  mqtt-data: null
+  fuseki-data: null

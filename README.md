@@ -13,6 +13,12 @@
 
 **距离关注等级只表示距离阈值分级，不是综合威胁判断。**
 
+## GitHub Actions部署ECS
+
+已提供手动部署工作流 **Deploy AirOntology to ECS**：在GitHub完成镜像构建与测试，通过SSH上传三个最终镜像，ECS导入后启动。服务器无需访问Docker Hub拉取镜像。支持架构检查、停写备份、健康检查和失败后尝试恢复上一发布。
+
+先按照 [ECS自动部署说明](docs/ECS自动部署.md) 配置4项GitHub Secrets，再从Actions页面触发。
+
 ## 一、运行和更新
 
 需要Docker Desktop（Mac）或Docker Engine及Compose（Linux）。首次构建需要访问Docker Hub、npm、PyPI及Apache归档站。
@@ -34,12 +40,12 @@ Mac浏览器打开 `http://localhost:8092`。ECS默认仅监听本机，可使�
 cd AirOntology
 # 如有自行修改，先提交或妥善保存修改，再拉取。
 git pull --ff-only
-docker compose build app
+docker compose build
 docker compose up -d --wait
 docker compose --profile demo up -d --force-recreate simulator
 ```
 
-Fuseki与MQTT沿用原镜像配置，第二版只需重建应用镜像。尚未完成第一版基础镜像构建时，仍需先运行 `docker compose build`。
+本次同时修复Fuseki首次启动时数据库目录未创建的问题，请重建Fuseki和应用镜像。
 
 第一次升级前建议停止服务并备份数据。第一版已有最新位置会自动补齐观测和评估，无法恢复第一版未保存的历史。详情见 [第二版说明](docs/第二版说明.md)。不要执行 `down -v`，除非确实要删除数据。
 

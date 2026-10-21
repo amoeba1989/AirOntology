@@ -1,0 +1,95 @@
+name: Deploy AirOntology to ECS
+run-name: Deploy ${{ github.sha }} to ECS (${{ inputs.architecture }})
+on:
+  workflow_dispatch:
+    inputs:
+      architecture:
+        description: ECS CPU架构（uname -m为x86_64选amd64，为aarch64选arm64）
+        type: choice
+        options: [amd64, arm64]
+        default: amd64
+        required: true
+      run_simulator:
+        description: 部署后启动三架无人机模拟器
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: airontology-ecs-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ${{ inputs.architecture == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 60
+    env:
+      RELEASE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+      TARGET_ARCH: ${{ inputs.architecture }}
+      RUN_SIMULATOR: ${{ inputs.run_simulator }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate deployment configuration
+        env:
+          ECS_HOST: ${{ secrets.ECS_HOST }}
+          ECS_USER: ${{ secrets.ECS_USER }}
+          ECS_SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
+          ECS_KNOWN_HOSTS: ${{ secrets.ECS_KNOWN_HOSTS }}
+        run: |
+          for name in ECS_HOST ECS_USER ECS_SSH_KEY ECS_KNOWN_HOSTS; do
+            if [[ -z "${!name}" ]]; then echo "Missing repository secret: $name"; exit 1; fi
+          done
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Test backend and deployment scripts
+        run: |
+          pip install -r backend/requirements-dev.txt
+          PYTHONPATH=backend python -m pytest backend/tests -q
+          bash -n scripts/deploy-ecs.sh scripts/publish-ecs.sh
+          python scripts/test_deploy.py
+      - name: Test frontend
+        working-directory: frontend
+        run: npm ci && npm test && npm run build
+      - name: Build and verify full services
+        env:
+          VITE_TILE_URL: ${{ vars.VITE_TILE_URL }}
+          VITE_TILE_ATTRIBUTION: ${{ vars.VITE_TILE_ATTRIBUTION }}
+        run: |
+          cp .env.example .env
+          docker compose build
+          docker compose up -d --wait --wait-timeout 180
+          docker compose --profile demo up -d simulator
+          python scripts/smoke.py
+      - name: Package exact tested images
+        run: |
+          mkdir -p bundle/deploy
+          docker tag airontology-app:local "airontology-app:$GITHUB_SHA"
+          docker tag "$(docker compose images -q fuseki)" "airontology-fuseki:$GITHUB_SHA"
+          docker tag eclipse-mosquitto:2.0.22 "airontology-mqtt:$GITHUB_SHA"
+          printf 'APP_IMAGE=airontology-app:%s\nFUSEKI_IMAGE=airontology-fuseki:%s\nMQTT_IMAGE=airontology-mqtt:%s\n' "$GITHUB_SHA" "$GITHUB_SHA" "$GITHUB_SHA" > bundle/images.env
+          docker save "airontology-app:$GITHUB_SHA" "airontology-fuseki:$GITHUB_SHA" "airontology-mqtt:$GITHUB_SHA" | gzip -1 > bundle/images.tar.gz
+          cp deploy/compose.ecs.yaml bundle/compose.ecs.yaml
+          cp deploy/mosquitto.conf bundle/deploy/mosquitto.conf
+          cp .env.example bundle/.env.example
+          tar -cf bundle.tar -C bundle .
+      - name: Upload and deploy through verified SSH
+        env:
+          ECS_HOST: ${{ secrets.ECS_HOST }}
+          ECS_USER: ${{ secrets.ECS_USER }}
+          ECS_SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
+          ECS_KNOWN_HOSTS: ${{ secrets.ECS_KNOWN_HOSTS }}
+          ECS_PORT: ${{ vars.ECS_PORT }}
+          ECS_DEPLOY_PATH: ${{ vars.ECS_DEPLOY_PATH }}
+        run: bash scripts/publish-ecs.sh
+      - name: Build logs
+        if: always()
+        run: docker compose --profile demo logs --tail=50
+      - name: Clean runner containers
+        if: always()
+        run: docker compose --profile demo down
