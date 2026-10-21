@@ -12,6 +12,14 @@ DEMO=${5:-true}
 [[ "$BUNDLE_SHA" =~ ^[a-f0-9]{64}$ ]] || exit 1
 [[ "$ARCH" == amd64 || "$ARCH" == arm64 ]] || exit 1
 [[ "$DEMO" == true || "$DEMO" == false ]] || exit 1
+echo "[$(date -Is)] 开始部署，先检查内存与磁盘"
+free -h || true
+uptime || true
+AVAILABLE_KB=$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)
+if [[ -n "$AVAILABLE_KB" ]] && (( AVAILABLE_KB < 524288 )); then
+  echo '可用内存不足512MiB，暂停部署。请先停止其他业务服务，再重新运行；避免镜像导入拖垮ECS。'
+  exit 1
+fi
 command -v docker >/dev/null
 command -v flock >/dev/null
 docker compose version >/dev/null
@@ -26,6 +34,7 @@ RELEASE="$ROOT/releases/$RELEASE_ID"
 PACKAGE="$ROOT/incoming/$RELEASE_ID/bundle.tar"
 printf '%s  %s\n' "$BUNDLE_SHA" "$PACKAGE" | sha256sum -c -
 mkdir "$RELEASE"
+echo "[$(date -Is)] 上传校验通过，开始解包"
 tar -xf "$PACKAGE" -C "$RELEASE" --no-same-owner
 [[ -f "$RELEASE/images.env" && -f "$RELEASE/compose.ecs.yaml" && -f "$RELEASE/images.tar.gz" ]]
 if [[ ! -f "$ROOT/shared/.env" ]]; then
@@ -39,9 +48,12 @@ compose_at() {
   docker compose --project-name airontology --project-directory "$directory" \
     --env-file "$ROOT/shared/.env" --env-file "$directory/images.env" -f "$directory/compose.ecs.yaml" "$@"
 }
+echo "[$(date -Is)] 解包完成，验证部署配置"
 compose_at "$RELEASE" config --quiet
 # 导入失败不触碰正在运行的服务。
+echo "[$(date -Is)] 开始导入镜像；此阶段消耗内存和磁盘IO"
 docker load -i "$RELEASE/images.tar.gz"
+echo "[$(date -Is)] 镜像导入完成"
 [[ ! -e "$ROOT/current" || -L "$ROOT/current" ]] || { echo 'current必须为发布软链接'; exit 1; }
 PREVIOUS=''
 if [[ -L "$ROOT/current" ]]; then PREVIOUS=$(readlink -f "$ROOT/current"); fi
@@ -88,6 +100,7 @@ if [[ -n "$(compose_at "$RELEASE" ps -aq fuseki)" ]]; then
   compose_at "$RELEASE" cp fuseki:/data "$BACKUP/fuseki-data"
   echo "已保存停止写入后的Fuseki备份：$BACKUP/fuseki-data"
 fi
+echo "[$(date -Is)] 开始启动服务并等待健康检查"
 compose_at "$RELEASE" up -d --no-build --pull never --wait --wait-timeout 900
 # 在应用容器内检查JSON健康状态，不依赖ECS公网访问应用端口。
 compose_at "$RELEASE" exec -T app python -c \
