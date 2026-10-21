@@ -28,6 +28,7 @@ export default `
     <section class="situation-grid">
       <div class="panel map-panel">
         <div class="panel-heading"><h2><span class="section-index">01</span>{{mode==='replay'?'历史态势':'实时态势'}}</h2><div><label class="follow"><input type="checkbox" v-model="follow">跟随目标</label><button @click="locate">定位全景 ↗</button></div></div>
+        <div class="map-controls"><label><input type="checkbox" v-model="showTrails" @change="draw">无人机轨迹</label><label><input type="checkbox" v-model="showRanges" @change="draw">距离分级圈</label><span>圆形：无人机 · 方形旗标：阵地</span></div>
         <div class="map-wrap"><div id="map"></div><div class="map-badge">{{status}} · {{point?.name || '等待阵地'}}<span v-if="data">{{formatTime(data.at)}}</span></div><div v-if="mapMessage" class="tile-notice">{{mapMessage}}</div><div class="legend"><span><i style="background:#e45555"></i>高关注</span><span><i style="background:#ed9b32"></i>中关注</span><span><i style="background:#3899ce"></i>低关注</span><span><i style="background:#5aab87"></i>阈值外</span></div></div>
         <div class="map-caption">WGS84 · 水平距离 / 米<span>颜色针对选中阵地；距离远近不等于综合威胁</span></div>
       </div>

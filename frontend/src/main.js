@@ -10,6 +10,9 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./style.css";
 import template from "./template.js";
+import { mergeTrail, trailSegments } from "./map-utils.js";
+const droneSvg = `<svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="7" cy="7" r="4"/><circle cx="25" cy="7" r="4"/><circle cx="7" cy="25" r="4"/><circle cx="25" cy="25" r="4"/><path d="M10 10l12 12M22 10L10 22"/><rect x="12" y="11" width="8" height="10" rx="3" fill="currentColor"/></g></svg>`;
+const positionSvg = `<svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round"><path d="M5 27h22M8 27V15l8-6 8 6v12M13 27v-7h6v7M16 9V3h9l-3 3 3 3h-9"/></g></svg>`;
 
 createApp({
   setup() {
@@ -28,6 +31,10 @@ createApp({
       follow = ref(false),
       mapMessage = ref(""),
       trace = ref(null);
+    const showTrails = ref(true),
+      showRanges = ref(true);
+    const trails = new Map();
+    const historyLoaded = new Set();
     const records = ref([]),
       historyTarget = ref(""),
       frame = ref(0),
@@ -146,12 +153,12 @@ createApp({
         const marker = L.marker([p.lat, p.lon], {
           icon: L.divIcon({
             className: "",
-            html: `<div class="position-icon ${p.id === point.value?.id ? "selected-marker" : ""}">⌖</div>`,
+            html: `<div class="position-icon ${p.id === point.value?.id ? "selected-marker" : ""}">${positionSvg}</div>`,
             iconSize: [34, 34],
             iconAnchor: [17, 17],
           }),
         }).addTo(layers);
-        marker.bindTooltip(tooltip(p.name), {
+        marker.bindTooltip(tooltip(`阵地 · ${p.name}`), {
           permanent: true,
           direction: "bottom",
           offset: [0, 17],
@@ -160,18 +167,26 @@ createApp({
         marker.on("click", () => choosePosition(p.id));
       }
       const thresholds = assessment.value?.thresholds || data.value.thresholds;
-      if (point.value)
-        [...thresholds]
-          .reverse()
-          .forEach((radius, i) =>
-            L.circle([point.value.lat, point.value.lon], {
-              radius,
-              color: ["#5da7ce", "#dda456", "#d97979"][i],
-              weight: 1,
-              dashArray: "5 7",
-              fillOpacity: 0.025,
-            }).addTo(layers),
-          );
+      if (point.value && showRanges.value)
+        [...thresholds].reverse().forEach((radius, i) => {
+          const color = ["#2586bd", "#da850e", "#d83e46"][i];
+          const circle = L.circle([point.value.lat, point.value.lon], {
+            radius,
+            color,
+            weight: i === 2 ? 4 : 3,
+            dashArray: ["10 6", "5 5", null][i],
+            fillOpacity: 0.055,
+          }).addTo(layers);
+          L.marker([circle.getBounds().getNorth(), point.value.lon], {
+            interactive: false,
+            icon: L.divIcon({
+              className: "range-label",
+              html: `${radius} 米 · ${["低", "中", "高"][i]}关注`,
+              iconSize: [124, 24],
+              iconAnchor: [62, 12],
+            }),
+          }).addTo(layers);
+        });
       for (const t of data.value.targets) {
         const evaluation = t.assessments.find(
             (a) => a.position_id === point.value?.id,
@@ -180,12 +195,12 @@ createApp({
         const marker = L.marker([t.lat, t.lon], {
           icon: L.divIcon({
             className: "",
-            html: `<div class="drone-icon ${t.id === target.value?.id ? "selected-marker" : ""}" style="--marker:${color}">✣</div>`,
+            html: `<div class="drone-icon ${t.id === target.value?.id ? "selected-marker" : ""}" style="--marker:${color}">${droneSvg}</div>`,
             iconSize: [38, 38],
             iconAnchor: [19, 19],
           }),
         }).addTo(layers);
-        marker.bindTooltip(tooltip(t.name), {
+        marker.bindTooltip(tooltip(`无人机 · ${t.name}`), {
           permanent: true,
           direction: "top",
           offset: [0, -21],
@@ -210,12 +225,37 @@ createApp({
           });
       }
       pathLayer?.remove();
-      pathLayer = null;
-      if (mode.value === "replay" && records.value.length > 1)
-        pathLayer = L.polyline(
-          records.value.map((r) => [r.lat, r.lon]),
-          { color: "#527ba0", weight: 2, opacity: 0.5 },
-        ).addTo(map);
+      pathLayer = L.layerGroup().addTo(map);
+      if (showTrails.value) {
+        for (const [i, t] of data.value.targets.entries()) {
+          const points =
+            mode.value === "replay"
+              ? t.id === historyTarget.value
+                ? records.value.slice(0, frame.value + 1)
+                : []
+              : trails.get(t.id) || [];
+          for (const segment of trailSegments(
+            points,
+            t.timestamp,
+            Math.max(10, (data.value.stale_seconds || 30) * 2),
+          )) {
+            const coords = segment.map((p) => [p.lat, p.lon]);
+            L.polyline(coords, {
+              color: "#fff",
+              weight: 7,
+              opacity: 0.85,
+              interactive: false,
+            }).addTo(pathLayer);
+            L.polyline(coords, {
+              color: ["#6554c0", "#087f8c", "#b34b83"][i % 3],
+              weight: t.id === target.value?.id ? 4 : 3,
+              opacity: 0.85,
+            })
+              .addTo(pathLayer)
+              .bindTooltip(tooltip(`${t.name} · 已观测轨迹`));
+          }
+        }
+      }
       if (!initialized) {
         initialized = true;
         locate();
@@ -231,8 +271,17 @@ createApp({
         ...(data.value?.positions || []),
         ...(data.value?.targets || []),
       ].map((p) => [p.lat, p.lon]);
-      if (coords.length)
-        map.fitBounds(L.latLngBounds(coords).pad(0.3), {
+      const bounds = L.latLngBounds(coords);
+      if (point.value && showRanges.value) {
+        const radius = Math.max(
+          ...(assessment.value?.thresholds || data.value.thresholds),
+        );
+        bounds.extend(
+          L.latLng(point.value.lat, point.value.lon).toBounds(radius * 2),
+        );
+      }
+      if (bounds.isValid())
+        map.fitBounds(bounds.pad(0.15), {
           padding: [45, 45],
           maxZoom: 17,
         });
@@ -283,6 +332,24 @@ createApp({
         health.value = h;
         if (s && mode.value === "live") {
           data.value = s;
+          for (const t of s.targets) {
+            trails.set(t.id, mergeTrail(trails.get(t.id) || [], [t]));
+            if (!historyLoaded.has(t.id)) {
+              historyLoaded.add(t.id);
+              request(
+                `/api/history?target_id=${encodeURIComponent(t.id)}&limit=300`,
+              )
+                .then((result) => {
+                  if (closed) return;
+                  trails.set(
+                    t.id,
+                    mergeTrail(result.records, trails.get(t.id) || []),
+                  );
+                  if (mode.value === "live") draw();
+                })
+                .catch(() => notice("历史轨迹暂未加载，继续绘制实时观测轨迹"));
+            }
+          }
           normalizeSelection();
           draw();
           if (tab.value === "instance") await loadInstance();
@@ -497,6 +564,9 @@ createApp({
       mode,
       loading,
       follow,
+      showTrails,
+      showRanges,
+      draw,
       mapMessage,
       selected,
       positionId,
