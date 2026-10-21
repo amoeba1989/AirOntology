@@ -1,0 +1,75 @@
+name: airontology
+x-app-env: &app-env
+  MQTT_HOST: mqtt
+  MQTT_PORT: 1883
+  MQTT_TOPIC: counteruav/track/blue
+  POSITION_ID: ${POSITION_ID:-pos001}
+  POSITION_NAME: ${POSITION_NAME:-一号阵地}
+  POSITION_LON: ${POSITION_LON:-116.4077}
+  POSITION_LAT: ${POSITION_LAT:-39.9045}
+services:
+  mqtt:
+    image: eclipse-mosquitto:2.0.22
+    restart: unless-stopped
+    volumes:
+      - ./deploy/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mqtt-data:/mosquitto/data
+    healthcheck:
+      test: ["CMD", "mosquitto_pub", "-h", "127.0.0.1", "-t", "healthcheck", "-m", "ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  fuseki:
+    build:
+      context: .
+      dockerfile: deploy/Fuseki.Dockerfile
+    restart: unless-stopped
+    volumes:
+      - fuseki-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3030/$$/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+  app:
+    image: airontology-app:local
+    build:
+      context: .
+      args:
+        VITE_TILE_URL: ${VITE_TILE_URL:-}
+        VITE_TILE_ATTRIBUTION: ${VITE_TILE_ATTRIBUTION:-&copy; OpenStreetMap contributors}
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      FUSEKI_URL: http://fuseki:3030/counteruav
+      STALE_SECONDS: ${STALE_SECONDS:-5}
+      HIGH_THRESHOLD: ${HIGH_THRESHOLD:-100}
+      MEDIUM_THRESHOLD: ${MEDIUM_THRESHOLD:-200}
+      LOW_THRESHOLD: ${LOW_THRESHOLD:-300}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-8092}:8000"
+    depends_on:
+      mqtt:
+        condition: service_healthy
+      fuseki:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,json; d=json.load(urllib.request.urlopen('http://127.0.0.1:8000/api/health')); assert d['status']=='ok'"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+  simulator:
+    image: airontology-app:local
+    profiles: [demo]
+    restart: unless-stopped
+    command: ["python", "/app/simulator/main.py"]
+    environment:
+      <<: *app-env
+    depends_on:
+      app:
+        condition: service_healthy
+volumes:
+  mqtt-data:
+  fuseki-data:

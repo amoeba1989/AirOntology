@@ -1,0 +1,26 @@
+@prefix cu: <http://counteruav.org/counterUav#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# 本体定义：只描述类别、属性和关系，不保存实时位置。
+cu: a owl:Ontology ;
+    rdfs:label "无人机距离关注演示本体"@zh ;
+    owl:versionInfo "1.0.0" ;
+    rdfs:comment "业务代码计算距离及等级，本体表达结果，不配置自动推理。"@zh .
+
+cu:BlueDevice a owl:Class ; rdfs:label "无人机目标"@zh ; rdfs:comment "被持续观测的无人机。"@zh .
+cu:Position a owl:Class ; rdfs:label "阵地"@zh ; rdfs:comment "固定的监测关联阵地。"@zh .
+cu:DistanceLevel a owl:Class ; rdfs:label "距离关注等级"@zh ; rdfs:comment "仅根据距离阈值分级，不代表综合威胁。"@zh .
+
+# 数据属性：对象与文字、数字、时间等值的联系。
+cu:name a owl:DatatypeProperty ; rdfs:label "名称"@zh ; rdfs:range xsd:string .
+cu:lon a owl:DatatypeProperty ; rdfs:label "经度（WGS84）"@zh ; rdfs:range xsd:double .
+cu:lat a owl:DatatypeProperty ; rdfs:label "纬度（WGS84）"@zh ; rdfs:range xsd:double .
+cu:speed a owl:DatatypeProperty ; rdfs:label "速度（米/秒）"@zh ; rdfs:range xsd:double .
+cu:timestamp a owl:DatatypeProperty ; rdfs:label "最新观测时间"@zh ; rdfs:range xsd:dateTime .
+cu:distanceToPosition a owl:DatatypeProperty ; rdfs:label "到阵地水平距离（米）"@zh ; rdfs:range xsd:double .
+
+# 对象属性：对象与另一个对象的联系。
+cu:monitoredAgainst a owl:ObjectProperty ; rdfs:label "关联阵地"@zh ; rdfs:domain cu:BlueDevice ; rdfs:range cu:Position .
+cu:hasDistanceLevel a owl:ObjectProperty ; rdfs:label "距离关注等级"@zh ; rdfs:domain cu:BlueDevice ; rdfs:range cu:DistanceLevel .

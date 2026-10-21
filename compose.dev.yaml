@@ -1,0 +1,9 @@
+# 本地开发覆盖：仅向本机开放依赖端口。
+# docker compose -f compose.yaml -f compose.dev.yaml up -d mqtt fuseki
+services:
+  mqtt:
+    ports:
+      - "127.0.0.1:1883:1883"
+  fuseki:
+    ports:
+      - "127.0.0.1:3030:3030"

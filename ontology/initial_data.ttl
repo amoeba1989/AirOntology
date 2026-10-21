@@ -1,0 +1,10 @@
+@prefix cu: <http://counteruav.org/counterUav#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# 预置实例：等级是具体取值，因此定义为实例。阵地由配置初始化。
+cu:HighAttention a owl:NamedIndividual, cu:DistanceLevel ; rdfs:label "高关注"@zh .
+cu:MediumAttention a owl:NamedIndividual, cu:DistanceLevel ; rdfs:label "中关注"@zh .
+cu:LowAttention a owl:NamedIndividual, cu:DistanceLevel ; rdfs:label "低关注"@zh .
+cu:OutsideThreshold a owl:NamedIndividual, cu:DistanceLevel ; rdfs:label "阈值外"@zh .
