@@ -3,7 +3,7 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-cu: a owl:Ontology ; rdfs:label "无人机观测与评估本体"@zh ; owl:versionInfo "2.0.0" ;
+cu: a owl:Ontology ; rdfs:label "无人机观测与评估本体"@zh ; owl:versionInfo "2.2.0" ;
  rdfs:comment "Python计算距离和等级；RDF关联目标、观测、阵地与规则。未启用自动推理。"@zh .
 
 cu:BlueDevice a owl:Class ; rdfs:label "无人机目标"@zh ; rdfs:comment "持续存在的目标对象，不直接保存多个阵地的距离。"@zh .
@@ -40,3 +40,22 @@ cu:toPosition a owl:ObjectProperty ; rdfs:label "评估针对的阵地"@zh ; rdf
 cu:basedOnObservation a owl:ObjectProperty ; rdfs:label "依据观测"@zh ; rdfs:domain cu:Assessment ; rdfs:range cu:Observation .
 cu:usedRule a owl:ObjectProperty ; rdfs:label "采用规则"@zh ; rdfs:domain cu:Assessment ; rdfs:range cu:DistanceRule .
 cu:hasDistanceLevel a owl:ObjectProperty ; rdfs:label "距离关注等级"@zh ; rdfs:domain cu:Assessment ; rdfs:range cu:DistanceLevel .
+
+# 智能态势问答：排序由策略及Python约束，大模型只解释。
+cu:AttentionRankingPolicy a owl:Class ; rdfs:label "关注排序策略"@zh ; rdfs:comment "声明排序字段、等级顺序与版本；不是让大模型自由排序。"@zh .
+cu:SituationAnalysis a owl:Class ; rdfs:label "态势分析快照"@zh ; rdfs:comment "一次问题对应一个固定数据快照；实时变化不改写已返回的卡片。"@zh .
+cu:RankedCandidate a owl:Class ; rdfs:label "排序候选记录"@zh ; rdfs:comment "某次分析中一架无人机的确定性排序结果与依据。"@zh .
+cu:sortKeys a owl:ObjectProperty ; rdfs:label "排序字段列表"@zh ; rdfs:domain cu:AttentionRankingPolicy .
+cu:levelOrder a owl:ObjectProperty ; rdfs:label "等级优先顺序"@zh ; rdfs:domain cu:AttentionRankingPolicy .
+cu:hasCandidate a owl:ObjectProperty ; rdfs:label "包含排序候选"@zh ; rdfs:domain cu:SituationAnalysis ; rdfs:range cu:RankedCandidate .
+cu:usedRankingPolicy a owl:ObjectProperty ; rdfs:label "采用排序策略"@zh ; rdfs:domain cu:SituationAnalysis ; rdfs:range cu:AttentionRankingPolicy .
+cu:analysisPosition a owl:ObjectProperty ; rdfs:label "分析针对的阵地"@zh ; rdfs:domain cu:SituationAnalysis ; rdfs:range cu:Position .
+cu:basedOnAssessment a owl:ObjectProperty ; rdfs:label "依据距离评估"@zh ; rdfs:domain cu:RankedCandidate ; rdfs:range cu:Assessment .
+cu:previousObservation a owl:ObjectProperty ; rdfs:label "趋势计算的前次观测"@zh ; rdfs:domain cu:RankedCandidate ; rdfs:range cu:Observation .
+cu:rank a owl:DatatypeProperty ; rdfs:label "本次名次"@zh ; rdfs:domain cu:RankedCandidate ; rdfs:range xsd:integer .
+cu:levelPriority a owl:DatatypeProperty ; rdfs:label "距离等级优先值"@zh ; rdfs:domain cu:RankedCandidate ; rdfs:range xsd:integer .
+cu:closingSpeed a owl:DatatypeProperty ; rdfs:label "两次观测的平均径向接近速度（米/秒）"@zh ; rdfs:domain cu:RankedCandidate ; rdfs:range xsd:double .
+cu:etaToHighAttention a owl:DatatypeProperty ; rdfs:label "预计进入高关注距离圈时间（秒）"@zh ; rdfs:domain cu:RankedCandidate ; rdfs:range xsd:double .
+cu:targetIdentifier a owl:DatatypeProperty ; rdfs:label "排序用目标编号"@zh ; rdfs:range xsd:string .
+cu:missingEta a owl:DatatypeProperty ; rdfs:label "未知预计时间的排序位置"@zh ; rdfs:domain cu:AttentionRankingPolicy ; rdfs:range xsd:string .
+cu:maxTrendGapSeconds a owl:DatatypeProperty ; rdfs:label "趋势观测最大间隔（秒）"@zh ; rdfs:range xsd:integer .

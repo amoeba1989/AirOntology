@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 @pytest.fixture
 def settings():
-    return Settings(ontology_dir=ROOT / 'ontology')
+    return Settings(ontology_dir=ROOT / 'ontology', deepseek_api_key='')
 
 
 def make_track(seconds=0, **values):
@@ -38,7 +38,9 @@ def store(settings):
         sparql = parse_qs(request.content.decode())['query'][0]
         result = dataset.query(sparql)
         if result.type == 'CONSTRUCT':
-            return httpx.Response(200, text=result.graph.serialize(format='turtle'))
+            # N-Triples is valid Turtle and preserves exact double lexical values;
+            # RDFLib's abbreviated Turtle serializer rounds coordinates in mocks.
+            return httpx.Response(200, text=result.graph.serialize(format='nt'))
         return httpx.Response(200, content=result.serialize(format='json'))
     instance = FusekiStore(settings)
     instance.client.close()
@@ -94,7 +96,8 @@ def test_api_and_stale_state(store,settings):
         situation=client.get('/api/situation').json()
         assert situation['targets'][0]['stale'] is True
         assert len(situation['positions'])==2
-        assert len(client.get('/api/ontology').json()['items'])==30
+        terms = {t['id'] for t in client.get('/api/ontology').json()['items']}
+        assert {'Observation','Assessment','DistanceRule','AttentionRankingPolicy','RankedCandidate'} <= terms
         assert 'owl:Class' in client.get('/api/ontology/ttl').text
         assert client.get('/api/targets/missing').status_code==404
         assert client.get('/api/targets/drone001').status_code==200

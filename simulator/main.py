@@ -1,4 +1,4 @@
-"""三架无人机的固定路线演示。停止进程即可演示观测过期。"""
+"""可配置数量的无人机固定路线演示。停止进程即可演示观测过期。"""
 import json
 import math
 import os
@@ -32,13 +32,17 @@ client.connect_async(os.getenv('MQTT_HOST', 'localhost'), int(os.getenv('MQTT_PO
 client.loop_start()
 geod = Geod(ellps='WGS84')
 lon, lat = float(os.getenv('POSITION_LON', '116.4077')), float(os.getenv('POSITION_LAT', '39.9045'))
+target_count = max(1, min(100, int(os.getenv('DEMO_TARGET_COUNT', '10'))))
+interval = max(1, min(30, float(os.getenv('DEMO_INTERVAL_SECONDS', '2'))))
+routes = [(65, 0), (110, 2.1), (290, 4.2)]
+routes += [((37 * i + 25) % 360, i * .63) for i in range(3, target_count)]
 step, previous = 0, {}
 try:
     while not stop.is_set():
         if not connected.wait(1):
             continue
         now = time.monotonic()
-        for index, (bearing, phase) in enumerate([(65, 0), (110, 2.1), (290, 4.2)], start=1):
+        for index, (bearing, phase) in enumerate(routes[:target_count], start=1):
             target_id = f'drone{index:03d}'
             distance = 260 + 240 * math.cos(step * math.pi / 36 + phase)
             target_lon, target_lat, _ = geod.fwd(lon, lat, bearing, distance)
@@ -50,9 +54,9 @@ try:
             result = client.publish(os.getenv('MQTT_TOPIC', 'counteruav/track/blue'), payload, qos=1, retain=False)
             if result.rc == mqtt.MQTT_ERR_SUCCESS:
                 previous[target_id] = (target_lon, target_lat, now)
-        print(f'已发布3架无人机观测，演示步数 {step}', flush=True)
+        print(f'已发布{target_count}架无人机观测，演示步数 {step}', flush=True)
         step += 1
-        stop.wait(1)
+        stop.wait(interval)
 finally:
     client.disconnect()
     client.loop_stop()

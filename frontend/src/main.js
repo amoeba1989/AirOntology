@@ -12,11 +12,12 @@ import "./style.css";
 import template from "./template.js";
 import { mergeTrail, trailSegments } from "./map-utils.js";
 import LearningWorkbench from "./learning.js";
+import AgentPanel from "./agent-panel.js";
 const droneSvg = `<svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="7" cy="7" r="4"/><circle cx="25" cy="7" r="4"/><circle cx="7" cy="25" r="4"/><circle cx="25" cy="25" r="4"/><path d="M10 10l12 12M22 10L10 22"/><rect x="12" y="11" width="8" height="10" rx="3" fill="currentColor"/></g></svg>`;
 const positionSvg = `<svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round"><path d="M5 27h22M8 27V15l8-6 8 6v12M13 27v-7h6v7M16 9V3h9l-3 3 3 3h-9"/></g></svg>`;
 
 createApp({
-  components: { LearningWorkbench },
+  components: { LearningWorkbench, AgentPanel },
   setup() {
     const data = ref(null),
       health = ref(null),
@@ -35,6 +36,26 @@ createApp({
       trace = ref(null);
     const showTrails = ref(true),
       showRanges = ref(true);
+    const viewMode = ref('screen');
+    async function changeView(value) {
+      viewMode.value = value;
+      await nextTick();
+      map?.invalidateSize();
+    }
+    async function locateAgentCandidate(candidate, snapshot) {
+      if (mode.value !== 'live') await live();
+      const current = data.value?.targets.find(t => t.id === candidate.target_id);
+      if (!current) { notice('该目标已不在当前态势中，请重新提问'); return; }
+      if (!data.value.positions.some(p => p.id === snapshot.position.id)) {
+        notice('本次回答的阵地已移除，请重新提问'); return;
+      }
+      await changeView('screen');
+      await chooseTarget(current.id);
+      choosePosition(snapshot.position.id);
+      highlightQuery([{target:{value:current.uri || 'http://counteruav.org/counterUav#'+current.id}}]);
+      map?.setView([current.lat,current.lon], 17, {animate:false});
+      notice('已定位当前可用位置；回答依据固定为 '+formatTime(snapshot.at));
+    }
     const queryHighlights = ref(new Set());
     function highlightQuery(rows) {
       queryHighlights.value = new Set(rows.flatMap(row => ['target','position'].map(key => row[key]?.value).filter(Boolean)));
@@ -97,9 +118,14 @@ createApp({
     const staleTargets = computed(() => data.value?.targets.filter(t => t.stale) || []);
     const pendingCount = computed(() => data.value?.assessments.filter(a => a.config_pending).length || 0);
     async function openKnowledge(value) {
+      await changeView('learning');
       await selectTab(value);
       await nextTick();
       document.getElementById("knowledge-panel")?.scrollIntoView?.({behavior:"smooth", block:"start"});
+    }
+    async function openLearning() {
+      await changeView('learning');
+      document.getElementById('learning-panel')?.scrollIntoView?.({block:'start'});
     }
     const groups = computed(() =>
       ["类", "对象属性", "数据属性"].map((kind) => ({
@@ -574,6 +600,10 @@ createApp({
       map?.remove();
     });
     return {
+      viewMode,
+      changeView,
+      locateAgentCandidate,
+      openLearning,
       request,
       highlightQuery,
       focusQueryRow,

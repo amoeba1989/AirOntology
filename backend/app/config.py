@@ -1,5 +1,7 @@
 from pathlib import Path
+from urllib.parse import urlsplit
 from pydantic import model_validator
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +23,9 @@ class Settings(BaseSettings):
     ontology_dir: Path = Path(__file__).resolve().parents[2] / 'ontology'
     queue_size: int = 1000
     history_limit: int = 300
+    deepseek_api_key: SecretStr = SecretStr('')
+    deepseek_base_url: str = 'https://api.deepseek.com'
+    deepseek_model: str = 'deepseek-flash'
 
     def initial_config(self):
         from .models import Position, RuntimeConfig
@@ -35,6 +40,9 @@ class Settings(BaseSettings):
 
     @model_validator(mode='after')
     def validate_config(self):
+        endpoint = urlsplit(self.deepseek_base_url)
+        if endpoint.scheme != 'https' or not endpoint.hostname or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment:
+            raise ValueError('DeepSeek地址必须是无用户名、密码或查询参数的HTTPS接口地址')
         if not 0 < self.high_threshold < self.medium_threshold < self.low_threshold:
             raise ValueError('距离阈值必须满足 0 < 高 < 中 < 低')
         if not -180 <= self.position_lon <= 180 or not -90 <= self.position_lat <= 90:

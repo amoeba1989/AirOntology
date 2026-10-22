@@ -46,6 +46,9 @@ services:
     environment:
       <<: *app-env
       FUSEKI_URL: http://fuseki:3030/counteruav
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-flash}
       STALE_SECONDS: ${STALE_SECONDS:-5}
       HISTORY_LIMIT: ${HISTORY_LIMIT:-300}
       HIGH_THRESHOLD: ${HIGH_THRESHOLD:-100}
@@ -71,6 +74,8 @@ services:
     command: ["python", "/app/simulator/main.py"]
     environment:
       <<: *app-env
+      DEMO_TARGET_COUNT: ${DEMO_TARGET_COUNT:-10}
+      DEMO_INTERVAL_SECONDS: ${DEMO_INTERVAL_SECONDS:-2}
     depends_on:
       app:
         condition: service_healthy

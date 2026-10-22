@@ -1,0 +1,17 @@
+@prefix cu: <http://counteruav.org/counterUav#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+cu:attention-policy-v1 a cu:AttentionRankingPolicy ;
+ rdfs:label "距离关注排序策略 V1"@zh ;
+ rdfs:comment "仅表示对所选阵地的距离关注优先级，不等同于综合威胁、违法飞行或处置决策。Python按声明的字段顺序排序；大模型仅解释。"@zh ;
+ cu:ruleVersion "attention-policy-v1" ;
+ cu:sortKeys (cu:levelPriority cu:etaToHighAttention cu:distanceToPosition cu:targetIdentifier) ;
+ cu:levelOrder (cu:HighAttention cu:MediumAttention cu:LowAttention cu:OutsideThreshold) ;
+ cu:missingEta "末尾" ;
+ cu:maxTrendGapSeconds 30 .
+
+cu:nearest-policy-v1 a cu:AttentionRankingPolicy ;
+ rdfs:label "最近距离排序策略 V1"@zh ;
+ rdfs:comment "按距离升序，距离相同时按目标编号升序。"@zh ;
+ cu:ruleVersion "nearest-policy-v1" ;
+ cu:sortKeys (cu:distanceToPosition cu:targetIdentifier) .

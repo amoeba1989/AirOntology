@@ -13,8 +13,10 @@ RESERVED = {'runtime', 'BlueDevice', 'Position', 'DistanceLevel', 'Observation',
             'configJson', 'latestObservation', 'latestAssessment', 'ofTarget', 'toPosition', 'basedOnObservation',
             'usedRule', 'hasDistanceLevel'}
 
+RESERVED.update({'analysisPosition', 'AttentionRankingPolicy', 'SituationAnalysis', 'RankedCandidate', 'sortKeys', 'levelOrder', 'hasCandidate', 'usedRankingPolicy', 'basedOnAssessment', 'previousObservation', 'rank', 'levelPriority', 'closingSpeed', 'etaToHighAttention', 'targetIdentifier', 'missingEta', 'maxTrendGapSeconds', 'attention-policy-v1', 'nearest-policy-v1'})
+
 def valid_identifier(value):
-    if value in RESERVED or value.startswith(('obs-', 'eval-', 'rule-')):
+    if value in RESERVED or value.startswith(('obs-', 'eval-', 'rule-', 'analysis-', 'rank-')):
         raise ValueError('编号与本体保留名称冲突，请使用drone001、pos001等业务编号')
     return value
 

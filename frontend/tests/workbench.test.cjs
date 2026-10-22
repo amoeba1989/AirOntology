@@ -42,6 +42,7 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     errors = [];
   win.SVGSVGElement.prototype.createSVGRect = () => ({});
   win.AbortSignal.timeout = () => undefined;
+  win.TextDecoder = TextDecoder;
   win.addEventListener("error", (e) =>
     errors.push(e.error?.stack || e.message),
   );
@@ -129,7 +130,16 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
   const queryCalls = [];
   win.fetch = async (url, opts = {}) => {
     let json;
-    if (url === '/api/learning/dictionary') json = {items:[termItem],source:learningSource,ttl:'cu:Observation a owl:Class .'};
+    if (url === '/api/agent/questions') json = {items:[{id:'attention',label:'哪些无人机最需关注？'},{id:'nearest',label:'哪些无人机距离阵地最近？'}],llm_configured:false};
+    else if (url === '/api/agent/ask') {
+      const messages=[['snapshot',{position:positions[0],policy:{label:'距离关注排序策略 V1',description:'等级 → 时间 → 距离'},at,eligible:3,excluded:[],ttl:'cu:test a cu:SituationAnalysis .'}],
+        ['candidate',{rank:1,target_id:'drone002',name:'无人机002',level_label:'高关注',distance:80,eta_seconds:0,reason:'距离80米',timestamp:at}],
+        ['candidate',{rank:2,target_id:'drone003',name:'无人机003',level_label:'中关注',distance:120,eta_seconds:null,reason:'距离120米',timestamp:at}],
+        ['explanation',{source:'rule',text:'这是规则说明，不是大模型回答。'}],['done',{}]];
+      const bytes=new TextEncoder().encode(messages.map(([type,data])=>`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`).join(''));let i=0;
+      return {ok:true,body:{getReader:()=>({read:async()=>i<bytes.length?{done:false,value:bytes.slice(i,i+=17)}:{done:true},cancel:async()=>{},releaseLock:()=>{}})}};
+    }
+    else if (url === '/api/learning/dictionary') json = {items:[termItem],source:learningSource,ttl:'cu:Observation a owl:Class .'};
     else if (url.startsWith('/api/learning/term?')) json = {...termItem,comment:'某时刻上报的位置',ttl:'cu:Observation a owl:Class .',relations:[],examples:[],count:0,scope:'当前最新事实'};
     else if (url === '/api/learning/model/preview') json = {items:[termItem],triple_count:2};
     else if (url === '/api/learning/model') { learningSource = opts.method === 'DELETE' ? 'business' : 'learning'; json = {status:'ok'}; }
@@ -269,6 +279,22 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     await until(() => !doc.querySelector('.validation-report'));
     button('校验编辑器样例').click();
     await until(() => doc.querySelector('.validation-report h3')?.textContent.includes('校验通过'));
+    button('态势大屏').click();
+    await until(() => doc.querySelector('.workspace.screen'));
+    assert.equal(doc.querySelector('.agent-dialog'),null);
+    doc.querySelector('[aria-label="打开智能态势问答"]').click();
+    await until(() => button('哪些无人机最需关注？ ↗'));
+    button('哪些无人机最需关注？ ↗').click();
+    await until(() => doc.querySelectorAll('.agent-candidate').length===2);
+    await until(() => doc.querySelector('.agent-explanation')?.textContent.includes('确定性规则说明'));
+    doc.querySelector('[aria-label="定位第1名 无人机002"]').click();
+    await until(() => doc.querySelector('[aria-label="选择无人机"]').value==='drone002');
+    doc.querySelector('[aria-label="定位第2名 无人机003"]').click();
+    await until(() => doc.querySelector('[aria-label="选择无人机"]').value==='drone003');
+    button('查看本次本体事实与排序策略').click();
+    await until(() => doc.querySelector('.agent-evidence pre')?.textContent.includes('SituationAnalysis'));
+    doc.querySelector('[aria-label="收起智能问答"]').click();
+    await until(() => doc.querySelector('.agent-orb'));
     assert.deepEqual(errors, []);
   } finally {
     dom.window.close();

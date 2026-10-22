@@ -1,10 +1,12 @@
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 import threading
-from fastapi import FastAPI, HTTPException, Path as PathParam, Query
-from fastapi.responses import PlainTextResponse
+from fastapi import FastAPI, HTTPException, Path as PathParam, Query, Request
+from fastapi.responses import PlainTextResponse, StreamingResponse
+from starlette.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from rdflib import Graph, OWL, RDFS, RDF
 from .config import Settings
@@ -15,6 +17,7 @@ from .consumer import Consumer
 from .views import situation_view, assessment_view, text
 from pydantic import BaseModel, Field
 from . import learning
+from . import agent
 
 
 class TurtleInput(BaseModel):
@@ -25,6 +28,12 @@ class QueryInput(BaseModel):
     query_id: str = Field(pattern='^(current|nearby|evidence|history|graphs)$')
     target_id: str | None = Field(default=None, pattern=ID_PATTERN)
     position_id: str | None = Field(default=None, pattern=ID_PATTERN)
+
+
+class AgentQuestion(BaseModel):
+    question_id: str = Field(pattern='^(attention|nearest)$')
+    position_id: str = Field(pattern=ID_PATTERN)
+    limit: int = Field(default=10, ge=1, le=10)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s %(message)s')
 
@@ -51,9 +60,10 @@ def create_app(settings=None, store=None, enable_mqtt=True):
                 consumer.stop()
             store.close()
 
-    app = FastAPI(title='AirOntology 无人机本体工作台', version='2.1.0', lifespan=lifespan)
+    app = FastAPI(title='AirOntology 无人机本体工作台', version='2.2.0', lifespan=lifespan)
     app.state.store, app.state.consumer = store, consumer
     validation_lock = threading.Lock()
+    agent_slots = threading.BoundedSemaphore(2)
 
     def safe(operation):
         try:
@@ -72,7 +82,39 @@ def create_app(settings=None, store=None, enable_mqtt=True):
             fuseki = False
         status = consumer.status()
         return {'status':'ok' if fuseki and status['connected'] and not status['last_error'] else 'degraded',
-                'fuseki':fuseki, 'mqtt':status, 'version':'2.1.0'}
+                'fuseki':fuseki, 'mqtt':status, 'version':'2.2.0'}
+
+    @app.get('/api/agent/questions')
+    def agent_questions():
+        return {'items':agent.QUESTIONS, 'llm_configured':bool(settings.deepseek_api_key.get_secret_value()),
+                'scope':agent.LIMIT_NOTE}
+
+    @app.post('/api/agent/ask')
+    async def ask_agent(body: AgentQuestion, request: Request):
+        if not agent_slots.acquire(blocking=False):
+            raise HTTPException(429, '已有态势分析正在运行，请稍后重试')
+        try:
+            snapshot = await run_in_threadpool(agent.build_analysis, store, settings,
+                body.question_id, body.position_id, body.limit)
+        except ValueError as error:
+            agent_slots.release()
+            raise HTTPException(422, str(error)) from error
+        except asyncio.CancelledError:
+            agent_slots.release()
+            raise
+        except Exception:
+            agent_slots.release()
+            logging.exception('态势分析快照生成失败')
+            raise HTTPException(503, '态势数据服务暂不可用，请稍后重试')
+
+        async def stream():
+            try:
+                async for chunk in agent.answer_events(snapshot, settings, request):
+                    yield chunk
+            finally:
+                agent_slots.release()
+        return StreamingResponse(stream(), media_type='text/event-stream',
+            headers={'Cache-Control':'no-cache', 'X-Accel-Buffering':'no'})
 
     @app.get('/api/config')
     def config():
@@ -125,6 +167,12 @@ def create_app(settings=None, store=None, enable_mqtt=True):
             with store.lock:
                 model, _ = learning_model()
                 try:
+                    if uri in agent.ANALYSIS_TERMS:
+                        from .domain import SCHEMA
+                        facts = store.construct(f'CONSTRUCT {{ ?s ?p ?o }} WHERE {{ VALUES ?g {{ <{SCHEMA}> <{agent.ANALYSIS_GRAPH}> }} GRAPH ?g {{ ?s ?p ?o }} }}')
+                        result = learning.term_view(model, facts, uri)
+                        result['scope'] = '最近一次固定分析快照及业务排序策略，不是全部历史；先打开智能态势问答可生成分析实例。'
+                        return result
                     return learning.term_view(model, learning.current_graph(store, settings.ontology_dir), uri)
                 except ValueError as error:
                     raise HTTPException(404, str(error)) from error

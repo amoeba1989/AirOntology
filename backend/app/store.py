@@ -74,7 +74,7 @@ class FusekiStore:
         with self.lock:
             definition = Graph().parse(self.settings.ontology_dir / 'cu_ontology.ttl', format='turtle')
             initial = Graph().parse(self.settings.ontology_dir / 'initial_data.ttl', format='turtle')
-            schema = definition + initial
+            schema = definition + initial + Graph().parse(self.settings.ontology_dir / 'attention_policy.ttl', format='turtle')
             self.update(f'CLEAR SILENT GRAPH <{SCHEMA}>; INSERT DATA {{ GRAPH <{SCHEMA}> {{ {schema.serialize(format="nt")} }} }}')
             result = self.query(f'SELECT ?json WHERE {{ GRAPH <{CONFIG}> {{ <{CU.runtime}> <{CU.configJson}> ?json }} }}')
             rows = result['results']['bindings']

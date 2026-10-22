@@ -71,4 +71,16 @@ invalid=post('/api/learning/validation', {'ttl':examples['invalid']})
 assert not invalid['conforms'] and invalid['result_count']>=3
 current=post('/api/learning/validation/current')
 assert current['conforms'] and current['focus_count']>0, current
-print('通过：多目标独立评估、MQTT、历史回放、TTL、本体词典、五个Fuseki只读查询、SHACL正常/异常/实时校验')
+agent_questions=json.loads(get('/api/agent/questions'))
+assert {q['id'] for q in agent_questions['items']}=={'attention','nearest'}
+# CI never calls a paid model; production smoke can skip the stream if configured.
+if not agent_questions['llm_configured']:
+    opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    request=urllib.request.Request(base+'/api/agent/ask',data=json.dumps({
+        'question_id':'attention','position_id':situation['positions'][0]['id']}).encode(),
+        headers={'Content-Type':'application/json'},method='POST')
+    with opener.open(request,timeout=30) as response:
+        stream=response.read().decode()
+    assert 'event: snapshot' in stream and 'event: candidate' in stream and 'event: done' in stream
+    assert 'attention-policy-v1' in stream and '未配置 DeepSeek' in stream
+print('通过：多目标独立评估、MQTT、回放、本体词典、Fuseki查询、SHACL校验、策略排序与流式卡片')
