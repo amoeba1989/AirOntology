@@ -11,6 +11,13 @@ def get(path):
     with opener.open(base+path,timeout=15) as response:
         return response.read().decode()
 
+def post(path, body=None):
+    opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    request=urllib.request.Request(base+path, data=json.dumps(body or {}).encode(),
+        headers={'Content-Type':'application/json'}, method='POST')
+    with opener.open(request,timeout=20) as response:
+        return json.loads(response.read())
+
 for attempt in range(60):
     try:
         health=json.loads(get('/api/health'))
@@ -45,4 +52,23 @@ assert replay['mode']=='replay'
 entry=situation['assessments'][0]
 detail=json.loads(get('/api/assessments/'+entry['id']))
 assert detail['rule_version'] and detail['observation']['source']
-print('通过：三目标×多阵地独立评估、MQTT更新、观测依据、规则版本、历史回放及TTL接口')
+dictionary=json.loads(get('/api/learning/dictionary'))
+assert dictionary['items'] and dictionary['source']=='business'
+term=json.loads(get('/api/learning/term?uri='+quote('http://counteruav.org/counterUav#Observation',safe='')))
+assert term['examples'] and term['relations'] and term['ttl']
+assert post('/api/learning/model/preview', {'ttl':dictionary['ttl']})['items']
+queries=json.loads(get('/api/learning/queries'))['items']
+assert len(queries)==5
+for query in queries:
+    result=post('/api/learning/query', {'query_id':query['id'],
+        'target_id':before['id'], 'position_id':situation['positions'][0]['id']})
+    assert result['sparql'] and isinstance(result['rows'],list)
+    if query['id']!='nearby':
+        assert result['rows'], query['id']
+examples=json.loads(get('/api/learning/validation/examples'))
+assert post('/api/learning/validation', {'ttl':examples['valid']})['conforms']
+invalid=post('/api/learning/validation', {'ttl':examples['invalid']})
+assert not invalid['conforms'] and invalid['result_count']>=3
+current=post('/api/learning/validation/current')
+assert current['conforms'] and current['focus_count']>0, current
+print('通过：多目标独立评估、MQTT、历史回放、TTL、本体词典、五个Fuseki只读查询、SHACL正常/异常/实时校验')
