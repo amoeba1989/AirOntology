@@ -2,7 +2,7 @@ export default `
 <div class="workspace">
   <header>
     <div class="brand-mark">A<span>O</span></div><div class="brand">AirOntology<small>无人机本体 · 观测与评估工作台</small></div>
-    <span class="edition">DEMO / V2.0</span>
+    <span class="edition">DEMO / V2.1</span>
     <div class="header-right"><span class="status-dot" :class="{online:mode==='live'&&health?.mqtt.connected}"></span>{{status}}<span class="divider"></span><button @click="openConfig" :disabled="mode!=='live'">阵地与规则配置</button></div>
   </header>
   <main>
@@ -15,7 +15,7 @@ export default `
       <div><span class="metric-label">选中目标 / 选中阵地</span><strong class="level-metric" :style="{color:assessment?.color}">{{assessment?.level_label || '待评估'}}</strong></div>
       <div class="dependency"><span :class="{connected:health?.mqtt.connected}">● MQTT {{health?.mqtt.connected?'已连接':'未连接'}}</span><span :class="{connected:health?.fuseki}">● Fuseki {{health?.fuseki?'可用':'未连接'}}</span></div>
     </div>
-    <nav class="knowledge-nav" aria-label="本体导航"><a href="#alarm-panel">告警看板</a><button @click="openKnowledge('structure')">TBox · 类与属性定义</button><button @click="openKnowledge('abox')">ABox · 实例与关系</button></nav>
+    <nav class="knowledge-nav" aria-label="本体导航"><a href="#alarm-panel">告警看板</a><a href="#learning-panel">本体学习工作台</a><button @click="openKnowledge('structure')">TBox · 类与属性定义</button><button @click="openKnowledge('abox')">ABox · 实例与关系</button></nav>
     <section id="alarm-panel" class="alarm-panel" :class="{urgent:alarmEntries.some(a=>a.level==='HighAttention')}" aria-labelledby="alarm-title">
       <div class="alarm-heading"><h2 id="alarm-title">{{mode==='live'?'实时距离告警':'历史快照 · 距离告警'}}</h2><strong>{{alarmEntries.length}} 条关注 · {{staleTargets.length}} 架数据过期</strong><span>{{formatTime(data?.at)}}</span></div>
       <p class="alarm-help">覆盖所有阵地，同一无人机可关联多条告警；仅按距离分级，不代表黑飞或综合威胁。{{mode==='live'?'随实时态势刷新。':'当前显示历史数据。'}}</p>
@@ -69,6 +69,7 @@ export default `
       <div v-else class="code-section"><div class="code-note">{{tab==='definition'?'模型定义：新增观测记录、评估记录和规则类别。':mode==='replay'?'历史快照：显示回放时间对应的观测、评估和规则，不是当前实时状态。':'最新事实：无人机通过当前评估关联观测、阵地和规则。'}}</div><pre><code>{{tab==='definition'?definition:instance||'暂无目标实例'}}</code></pre></div>
       <div class="ontology-footer"><span>对象属性连接对象，数据属性连接数值；距离和等级属于评估记录。</span><span>Python 计算 · RDF/OWL 表达 · SPARQL 查询</span></div>
     </section>
+    <LearningWorkbench :request="request" :data="data" :mode="mode" :highlight="highlightQuery" :focus-row="focusQueryRow" />
     <footer>AirOntology<span>从观测到评估，理解业务关系。</span><span>有界历史 · 不启用自动推理</span></footer>
   </main>
   <div v-if="configOpen&&draft" class="modal-backdrop" @click.self="configOpen=false"><section class="config-modal" role="dialog" aria-modal="true" aria-labelledby="config-title"><div class="panel-heading"><h2 id="config-title">阵地与距离规则</h2><button @click="configOpen=false">关闭</button></div><form @submit.prevent="saveConfig"><p class="config-tip">配置存入 Fuseki，重启后保留。从下一条观测生效，过去的评估不重算。初始环境变量不覆盖已保存配置。</p><div v-if="configError" role="alert" class="alert">{{configError}}</div><div class="config-positions"><div v-for="(p,index) in draft.positions" :key="index" class="config-position"><label>编号<input required pattern="[A-Za-z0-9_-]{1,100}" v-model="p.id"></label><label>名称<input required maxlength="80" v-model="p.name"></label><label>经度<input required type="number" step="any" min="-180" max="180" v-model.number="p.lon"></label><label>纬度<input required type="number" step="any" min="-90" max="90" v-model.number="p.lat"></label><button type="button" @click="draft.positions.splice(index,1)" :disabled="draft.positions.length===1">删除</button></div></div><button type="button" @click="addPosition" :disabled="draft.positions.length>=10">＋ 添加阵地（最多10处）</button><div class="rule-inputs"><label>高关注阈值 / 米<input required type="number" step="any" min="0.001" v-model.number="draft.high_threshold"></label><label>中关注阈值 / 米<input required type="number" step="any" min="0.001" v-model.number="draft.medium_threshold"></label><label>低关注阈值 / 米<input required type="number" step="any" min="0.001" max="100000" v-model.number="draft.low_threshold"></label><label>数据过期时间 / 秒<input required type="number" min="2" max="3600" step="any" v-model.number="draft.stale_seconds"></label><label>每目标保留观测数<input required type="number" min="10" max="1000" step="1" v-model.number="draft.history_limit"></label></div><p class="muted">必须满足：高阈值 &lt; 中阈值 &lt; 低阈值。历史数量减少后会清理旧记录。</p><div class="config-actions"><small>当前版本：{{configVersion}}</small><button type="submit" :disabled="saving">{{saving?'正在保存…':'保存配置'}}</button></div></form></section></div>

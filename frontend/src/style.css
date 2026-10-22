@@ -1059,6 +1059,29 @@ td small {
   width: 27px;
   height: 27px;
 }
+
+.learning-panel {margin-top:24px;scroll-margin-top:20px;overflow:hidden}
+.learning-heading {flex-wrap:wrap;gap:12px}
+.learning-intro {padding:14px 20px;background:#eef5fa;border-bottom:1px solid #d9e5ef;color:#38546b;font-size:13px;line-height:1.8}
+.learning-body {padding:20px;line-height:1.8;min-width:0}
+.learning-body h3 {font-size:19px;margin:10px 0}.learning-body h4 {font-size:14px;margin:20px 0 8px}
+.learning-body small,.learning-note {color:#617587;font-size:12px}.learning-note {line-height:1.8}
+.learning-body pre {padding:16px;background:#142b3e;color:#d4e9f5;border-radius:8px;overflow:auto;max-height:340px;font-size:12px;line-height:1.8;white-space:pre}
+.learning-body textarea {display:block;width:100%;padding:12px;border:1px solid #b8c9d6;border-radius:7px;font:12px/1.7 ui-monospace,monospace;resize:vertical;box-sizing:border-box;background:#f9fcff;color:#1d3b50}
+.learning-body label {font-size:12px;color:#4c6578}.learning-body input,.learning-body select {max-width:100%;padding:8px;border:1px solid #c5d3df;border-radius:5px;background:white;color:#24445b}
+.dictionary-layout {display:grid;grid-template-columns:minmax(200px,260px) minmax(0,1fr);gap:24px}
+.term-list {max-height:760px;overflow:auto;padding-right:10px;border-right:1px solid #dfe7ed}
+.term-list label,.term-list input {display:block;width:100%;box-sizing:border-box}.term-list input {margin:8px 0 14px}
+.term-list>button {display:flex;flex-direction:column;align-items:flex-start;text-align:left;width:100%;padding:10px;margin:4px 0;white-space:normal;border-color:transparent;background:#f5f8fa}
+.term-list>button.active {background:#e5f2fc;border-color:#438dbb;color:#145d8a}.term-list>button span {font-size:11px;color:#617587}
+.term-detail {min-width:0}.term-detail dl>div {display:block;padding:9px 0}.term-detail dd {margin:4px 0;overflow-wrap:anywhere}.full-uri {font-size:12px;overflow-wrap:anywhere;color:#3d6b8c}
+.learning-actions {display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0}.learning-actions label {display:flex;flex-direction:column;gap:5px}.learning-actions span {font-size:12px;color:#597184}
+.learning-editor {margin-top:24px;border:1px solid #d8e3eb;background:#f8fbfd;border-radius:8px;padding:15px}.learning-editor summary {font-weight:700;cursor:pointer;color:#294f69}
+.learning-body table {width:100%}.learning-body td {max-width:360px;overflow-wrap:anywhere;font-size:12px}.learning-body th code {font-weight:400;color:#6d7b89}
+.query-results {max-height:420px;overflow:auto}.query-cell {background:transparent;border:0;text-align:left;font-size:12px;white-space:normal;padding:4px;color:#23628c;overflow-wrap:anywhere}.query-results tbody tr:hover {background:#e9f3fb}
+.validation-report {padding:16px;margin-top:18px;border:1px solid #7ebba1;border-radius:8px;background:#f1faf5}.validation-report.invalid {border-color:#dbac70;background:#fff8ed}.validation-report p {font-size:12px}
+.drone-icon.query-match,.position-icon.query-match {outline:4px solid #315bea;outline-offset:4px}
+@media(max-width:800px){.dictionary-layout {grid-template-columns:1fr}.term-list {max-height:240px;border-right:0;border-bottom:1px solid #dfe7ed;padding:0 0 12px}.learning-body {padding:12px}.learning-heading .tabs {flex-wrap:wrap}.learning-actions select {width:100%}}
 .position-icon {
   border-radius: 5px;
 }

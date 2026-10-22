@@ -1,0 +1,113 @@
+@prefix cu: <http://counteruav.org/counterUav#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# SHACL 检查显式图数据；不启用 OWL 推理。
+cu:Observation_timestampShape a sh:PropertyShape ;
+ sh:path cu:timestamp ;
+ sh:minCount 1 ;
+ sh:maxCount 1 ;
+ sh:message "观测必须有且仅有一个合法时间"@zh ;
+ sh:datatype xsd:dateTime .
+
+cu:Observation_lonShape a sh:PropertyShape ;
+ sh:path cu:lon ;
+ sh:minCount 1 ;
+ sh:maxCount 1 ;
+ sh:message "经度必须是 -180 到 180 的 double 数值"@zh ;
+ sh:datatype xsd:double ;
+ sh:minInclusive -180 ;
+ sh:maxInclusive 180 .
+
+cu:Observation_latShape a sh:PropertyShape ;
+ sh:path cu:lat ;
+ sh:minCount 1 ;
+ sh:maxCount 1 ;
+ sh:message "纬度必须是 -90 到 90 的 double 数值"@zh ;
+ sh:datatype xsd:double ;
+ sh:minInclusive -90 ;
+ sh:maxInclusive 90 .
+
+cu:Observation_ofTargetShape a sh:PropertyShape ;
+ sh:path cu:ofTarget ;
+ sh:minCount 1 ;
+ sh:maxCount 1 ;
+ sh:message "观测必须关联且仅关联一架无人机"@zh ;
+ sh:nodeKind sh:IRI .
+
+cu:ObservationShape a sh:NodeShape ; sh:targetClass cu:Observation ;
+ sh:property cu:Observation_timestampShape, cu:Observation_lonShape, cu:Observation_latShape, cu:Observation_ofTargetShape .
+
+cu:Assessment_ofTargetShape a sh:PropertyShape ;
+ sh:path cu:ofTarget ;
+ sh:minCount 1 ;
+ sh:maxCount 1 ;
+ sh:message "评估必须关联且仅关联一架无人机"@zh ;
+ sh:nodeKind sh:IRI .
+
+cu:Assessment_toPositionShape a sh:PropertyShape ;
+ sh:path cu:toPosition ;
+ sh:minCount 1 ;
+ sh:maxCount 1 ;
+ sh:message "评估必须关联且仅关联一个阵地"@zh ;
+ sh:nodeKind sh:IRI .
+
+cu:Assessment_basedOnObservationShape a sh:PropertyShape ;
+ sh:path cu:basedOnObservation ;
+ sh:minCount 1 ;
+ sh:maxCount 1 ;
+ sh:message "评估必须依据且仅依据一条观测"@zh ;
+ sh:nodeKind sh:IRI .
+
+cu:Assessment_usedRuleShape a sh:PropertyShape ;
+ sh:path cu:usedRule ;
+ sh:minCount 1 ;
+ sh:maxCount 1 ;
+ sh:message "评估必须采用且仅采用一版规则"@zh ;
+ sh:nodeKind sh:IRI .
+
+cu:Assessment_timestampShape a sh:PropertyShape ;
+ sh:path cu:timestamp ;
+ sh:minCount 1 ;
+ sh:maxCount 1 ;
+ sh:message "评估必须有且仅有一个合法时间"@zh ;
+ sh:datatype xsd:dateTime .
+
+cu:Assessment_distanceToPositionShape a sh:PropertyShape ;
+ sh:path cu:distanceToPosition ;
+ sh:minCount 1 ;
+ sh:maxCount 1 ;
+ sh:message "评估距离必须是非负 double 数值"@zh ;
+ sh:datatype xsd:double ;
+ sh:minInclusive 0 .
+
+cu:AssessmentShape a sh:NodeShape ; sh:targetClass cu:Assessment ;
+ sh:property cu:Assessment_ofTargetShape, cu:Assessment_toPositionShape, cu:Assessment_basedOnObservationShape, cu:Assessment_usedRuleShape, cu:Assessment_timestampShape, cu:Assessment_distanceToPositionShape .
+
+cu:Position_nameShape a sh:PropertyShape ;
+ sh:path cu:name ;
+ sh:minCount 1 ;
+ sh:maxCount 1 ;
+ sh:message "阵地必须有且仅有一个名称"@zh ;
+ sh:datatype xsd:string .
+
+cu:Position_lonShape a sh:PropertyShape ;
+ sh:path cu:lon ;
+ sh:minCount 1 ;
+ sh:maxCount 1 ;
+ sh:message "阵地经度必须是 -180 到 180 的 double 数值"@zh ;
+ sh:datatype xsd:double ;
+ sh:minInclusive -180 ;
+ sh:maxInclusive 180 .
+
+cu:Position_latShape a sh:PropertyShape ;
+ sh:path cu:lat ;
+ sh:minCount 1 ;
+ sh:maxCount 1 ;
+ sh:message "阵地纬度必须是 -90 到 90 的 double 数值"@zh ;
+ sh:datatype xsd:double ;
+ sh:minInclusive -90 ;
+ sh:maxInclusive 90 .
+
+cu:PositionShape a sh:NodeShape ; sh:targetClass cu:Position ;
+ sh:property cu:Position_nameShape, cu:Position_lonShape, cu:Position_latShape .

@@ -1,6 +1,8 @@
-# AirOntology · 无人机本体工作台 V2
+# AirOntology · 无人机本体工作台 V2.1
 
 通过“MQTT观测 → Python计算 → RDF事实 → Fuseki查询 → Leaflet展示”理解本体。第二版把无人机、观测、评估、阵地和规则分开建模，不启用自动推理。
+
+V2.1 新增[本体学习工作台](docs/本体学习工作台.md)：中文术语词典、Protégé Turtle 模型隔离导入、五个 SPARQL 只读查询与地图高亮、实时 RDF / 编辑样例的 SHACL 中文校验报告。运行依赖新增 pySHACL，仍使用原有 Fuseki，不增加数据库服务。
 
 ## 第二版能做什么
 

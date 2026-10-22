@@ -11,10 +11,12 @@ import "leaflet/dist/leaflet.css";
 import "./style.css";
 import template from "./template.js";
 import { mergeTrail, trailSegments } from "./map-utils.js";
+import LearningWorkbench from "./learning.js";
 const droneSvg = `<svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="7" cy="7" r="4"/><circle cx="25" cy="7" r="4"/><circle cx="7" cy="25" r="4"/><circle cx="25" cy="25" r="4"/><path d="M10 10l12 12M22 10L10 22"/><rect x="12" y="11" width="8" height="10" rx="3" fill="currentColor"/></g></svg>`;
 const positionSvg = `<svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round"><path d="M5 27h22M8 27V15l8-6 8 6v12M13 27v-7h6v7M16 9V3h9l-3 3 3 3h-9"/></g></svg>`;
 
 createApp({
+  components: { LearningWorkbench },
   setup() {
     const data = ref(null),
       health = ref(null),
@@ -33,6 +35,22 @@ createApp({
       trace = ref(null);
     const showTrails = ref(true),
       showRanges = ref(true);
+    const queryHighlights = ref(new Set());
+    function highlightQuery(rows) {
+      queryHighlights.value = new Set(rows.flatMap(row => ['target','position'].map(key => row[key]?.value).filter(Boolean)));
+      draw();
+    }
+    function focusQueryRow(row) {
+      const targetURI = row.target?.value;
+      const positionURI = row.position?.value;
+      const id = value => value?.split('#').pop();
+      const exists = data.value?.targets.some(t => t.id === id(targetURI)) || data.value?.positions.some(p => p.id === id(positionURI || targetURI));
+      if (!exists) return;
+      if (data.value?.targets.some(t => t.id === id(targetURI))) chooseTarget(id(targetURI));
+      if (data.value?.positions.some(p => p.id === id(positionURI || targetURI))) choosePosition(id(positionURI || targetURI));
+      highlightQuery([row]);
+      document.getElementById('map')?.scrollIntoView?.({behavior:'smooth',block:'center'});
+    }
     const trails = new Map();
     const historyLoaded = new Set();
     const records = ref([]),
@@ -163,7 +181,7 @@ createApp({
         const marker = L.marker([p.lat, p.lon], {
           icon: L.divIcon({
             className: "",
-            html: `<div class="position-icon ${p.id === point.value?.id ? "selected-marker" : ""}">${positionSvg}</div>`,
+            html: `<div class="position-icon ${queryHighlights.value.has('http://counteruav.org/counterUav#'+p.id) ? 'query-match' : ''} ${p.id === point.value?.id ? "selected-marker" : ""}">${positionSvg}</div>`,
             iconSize: [34, 34],
             iconAnchor: [17, 17],
           }),
@@ -205,7 +223,7 @@ createApp({
         const marker = L.marker([t.lat, t.lon], {
           icon: L.divIcon({
             className: "",
-            html: `<div class="drone-icon ${t.id === target.value?.id ? "selected-marker" : ""}" style="--marker:${color}">${droneSvg}</div>`,
+            html: `<div class="drone-icon ${queryHighlights.value.has('http://counteruav.org/counterUav#'+t.id) ? 'query-match' : ''} ${t.id === target.value?.id ? "selected-marker" : ""}" style="--marker:${color}">${droneSvg}</div>`,
             iconSize: [38, 38],
             iconAnchor: [19, 19],
           }),
@@ -556,6 +574,9 @@ createApp({
       map?.remove();
     });
     return {
+      request,
+      highlightQuery,
+      focusQueryRow,
       data,
       health,
       target,

@@ -123,9 +123,27 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     },
   };
   let saved;
+  const termURI = 'http://counteruav.org/counterUav#Observation';
+  const termItem = {uri:termURI,id:'Observation',kind:'类',label:'观测记录',domain:[],range:[]};
+  let learningSource = 'business';
+  const queryCalls = [];
   win.fetch = async (url, opts = {}) => {
     let json;
-    if (url === "/api/health")
+    if (url === '/api/learning/dictionary') json = {items:[termItem],source:learningSource,ttl:'cu:Observation a owl:Class .'};
+    else if (url.startsWith('/api/learning/term?')) json = {...termItem,comment:'某时刻上报的位置',ttl:'cu:Observation a owl:Class .',relations:[],examples:[],count:0,scope:'当前最新事实'};
+    else if (url === '/api/learning/model/preview') json = {items:[termItem],triple_count:2};
+    else if (url === '/api/learning/model') { learningSource = opts.method === 'DELETE' ? 'business' : 'learning'; json = {status:'ok'}; }
+    else if (url === '/api/learning/queries') json = {items:[{id:'current',title:'当前有哪些无人机？',concept:'SELECT 选择列',parameters:[],note:'当前状态图'},{id:'evidence',title:'评估依据是什么？',concept:'跨图关联',parameters:['target_id'],note:'最新评估依据'}]};
+    else if (url === '/api/learning/query') {
+      queryCalls.push(JSON.parse(opts.body));
+      json = {sparql:'SELECT ?target WHERE { GRAPH <state> { ?target a cu:BlueDevice }} LIMIT 100',variables:['target'],rows:[{target:{type:'uri',value:'http://counteruav.org/counterUav#drone002'}}],executed_at:at};
+    }
+    else if (url === '/api/learning/validation/examples') json = {valid:'valid RDF sample',invalid:'invalid RDF sample',shapes:'sh:minCount 1'};
+    else if (url.startsWith('/api/learning/validation')) {
+      const bad = opts.body && JSON.parse(opts.body).ttl === 'invalid RDF sample';
+      json = {conforms:!bad,result_count:bad?1:0,focus_count:5,triple_count:30,scope:'受检事实',note:'显式约束',report_ttl:'sh:ValidationReport',results:bad?[{focus:'cu:obs-test',path:'cu:timestamp',message:'观测必须有且仅有一个合法时间',shape:'cu:Observation_timestampShape'}]:[]};
+    }
+    else if (url === "/api/health")
       json = { fuseki: true, mqtt: { connected: true } };
     else if (url === "/api/ontology")
       json = { items: [{ kind: "类", id: "Assessment", label: "评估记录" }] };
@@ -157,7 +175,7 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     win.eval(bundle.outputFiles[0].text);
     await until(() => doc.querySelectorAll(".drone-icon").length === 3);
     assert.equal(doc.querySelectorAll(".position-icon").length, 2);
-    assert.equal(doc.querySelectorAll("tbody tr").length, 3);
+    assert.equal(doc.querySelectorAll(".ranking-panel tbody tr").length, 3);
     const selector = doc.querySelector('[aria-label="选择阵地"]');
     selector.value = "pos002";
     selector.dispatchEvent(new win.Event("change", { bubbles: true }));
@@ -213,6 +231,44 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     await until(() => saved);
     assert.equal(saved.expected_version, "rule-test");
     assert.equal(saved.config.positions.length, 3);
+    await until(() => doc.querySelector('.term-detail h3')?.textContent.includes('观测记录'));
+    const search = doc.querySelector('[aria-label="搜索本体术语"]');
+    search.value = '不存在'; search.dispatchEvent(new win.Event('input',{bubbles:true}));
+    await until(() => doc.querySelector('.term-list').textContent.includes('没有匹配术语'));
+    search.value = ''; search.dispatchEvent(new win.Event('input',{bubbles:true}));
+    button('校验模型语法与术语').click();
+    await until(() => !button('导入独立学习模型').disabled);
+    button('导入独立学习模型').click();
+    await until(() => doc.querySelector('.learning-note').textContent.includes('独立学习模型'));
+    button('清除学习模型，恢复业务词典').click();
+    await until(() => doc.querySelector('.learning-note').textContent.includes('业务模型'));
+    button('② SPARQL 查询').click();
+    await until(() => button('运行只读查询'));
+    button('运行只读查询').click();
+    await until(() => doc.querySelectorAll('.query-match').length === 1);
+    assert.equal(doc.querySelector('.query-results tbody').textContent.trim(),'cu:drone002');
+    assert.ok(doc.querySelector('.learning-body pre').textContent.includes('SELECT ?target'));
+    button('cu:drone002').click();
+    await until(() => doc.querySelector('[aria-label="选择无人机"]').value === 'drone002');
+    const question = doc.querySelector('[aria-label="选择查询问题"]');
+    question.value = 'evidence'; question.dispatchEvent(new win.Event('change',{bubbles:true}));
+    await until(() => doc.querySelector('[aria-label="查询无人机"]'));
+    button('运行只读查询').click();
+    await until(() => queryCalls.length === 2);
+    assert.equal(queryCalls[1].target_id,'drone001');
+    button('③ SHACL 校验').click();
+    await until(() => button('载入异常样例'));
+    button('载入异常样例').click();
+    await until(() => doc.querySelector('[aria-label="待校验 RDF 样例"]').value === 'invalid RDF sample');
+    button('校验编辑器样例').click();
+    await until(() => doc.querySelector('.validation-report.invalid'));
+    assert.ok(doc.querySelector('.validation-report').textContent.includes('观测必须有且仅有一个合法时间'));
+    button('报告 RDF / TTL').click();
+    await until(() => doc.querySelector('.validation-report pre')?.textContent.includes('ValidationReport'));
+    button('载入正常样例').click();
+    await until(() => !doc.querySelector('.validation-report'));
+    button('校验编辑器样例').click();
+    await until(() => doc.querySelector('.validation-report h3')?.textContent.includes('校验通过'));
     assert.deepEqual(errors, []);
   } finally {
     dom.window.close();
