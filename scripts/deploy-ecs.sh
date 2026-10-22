@@ -111,6 +111,31 @@ if [[ "$DEMO" == true ]]; then
 fi
 ln -sfn "$RELEASE" "$ROOT/current.next"
 mv -Tf "$ROOT/current.next" "$ROOT/current"
+# Timer shares deploy.lock with this script, so maintenance cannot race deployment.
+if [[ -f "$RELEASE/deploy/maintain-ecs.py" ]] && command -v systemctl >/dev/null; then
+  install -m 700 "$RELEASE/deploy/maintain-ecs.py" "$ROOT/shared/maintain-ecs.py"
+  cat > /etc/systemd/system/airontology-maintenance.service <<EOF_SERVICE
+[Unit]
+Description=AirOntology TDB2 disk compaction
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 $ROOT/shared/maintain-ecs.py $ROOT
+TimeoutStartSec=240
+Nice=10
+EOF_SERVICE
+  cat > /etc/systemd/system/airontology-maintenance.timer <<'EOF_TIMER'
+[Unit]
+Description=Check AirOntology TDB2 disk usage every five minutes
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+[Install]
+WantedBy=timers.target
+EOF_TIMER
+  systemctl daemon-reload
+  systemctl enable --now airontology-maintenance.timer
+fi
 RESTORE_NEEDED=false
 trap - ERR
 # 镜像已导入，只清理本次传输包；保留发布配置、备份及镜像用于恢复。

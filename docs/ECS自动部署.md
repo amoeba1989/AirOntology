@@ -186,3 +186,14 @@ Fuseki默认JVM参数改为 `-Xms64m -Xmx512m -XX:ActiveProcessorCount=2`，容�
 失败日志现在包含内存、负载、磁盘、容器资源和各服务健康检查结果。若900秒仍无法就绪，应根据实际资源负载、健康检查日志和容器日志继续判断，不能仅无限延长等待时间。
 
 修复后从Actions页面新建一次main分支的Run workflow；旧任务的Re-run jobs仍使用旧提交，不会采用新配置。部署未成功之前，不会生成current成功发布链接。
+
+
+## TDB2 磁盘维护
+
+持续更新与删除 RDF 历史会让 TDB2 的底层文件继续增长。记录数量上限不等于磁盘空间上限。部署流程安装 `airontology-maintenance.timer`，每五分钟检查一次；数据目录超过 256MiB 时通过 Fuseki 管理 API 执行在线压缩，并等待任务成功。只有压缩成功后才由 Fuseki 删除旧存储代，不删除逻辑 RDF 事实。维护与部署共享锁，避免并行操作。
+
+- 查看状态：`systemctl status airontology-maintenance.timer`
+- 查看结果：`journalctl -u airontology-maintenance.service -n 30`
+- 立即验证：`python3 /opt/airontology/shared/maintain-ecs.py /opt/airontology --force`
+
+仍需监控系统盘剩余容量；定时压缩不能替代备份。参考：https://jena.apache.org/documentation/fuseki2/fuseki-server-protocol.html

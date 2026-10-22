@@ -57,6 +57,7 @@ jobs:
           PYTHONPATH=backend python -m pytest backend/tests -q
           bash -n scripts/deploy-ecs.sh scripts/publish-ecs.sh
           python scripts/test_deploy.py
+          python -m py_compile scripts/maintain-ecs.py
       - name: Test frontend
         working-directory: frontend
         run: npm ci && npm test && npm run build
@@ -80,6 +81,7 @@ jobs:
           docker save "airontology-app:$GITHUB_SHA" "airontology-fuseki:$GITHUB_SHA" "airontology-mqtt:$GITHUB_SHA" | gzip -1 > bundle/images.tar.gz
           cp deploy/compose.ecs.yaml bundle/compose.ecs.yaml
           cp deploy/mosquitto.conf bundle/deploy/mosquitto.conf
+          cp scripts/maintain-ecs.py bundle/deploy/maintain-ecs.py
           cp .env.example bundle/.env.example
           tar -cf bundle.tar -C bundle .
       - name: Install password login helper
