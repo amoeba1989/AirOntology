@@ -111,3 +111,236 @@ cu:Position_latShape a sh:PropertyShape ;
 
 cu:PositionShape a sh:NodeShape ; sh:targetClass cu:Position ;
  sh:property cu:Position_nameShape, cu:Position_lonShape, cu:Position_latShape .
+
+# V2.3 多源证据结构约束；不证明算法正确性。
+@prefix cu: <http://counteruav.org/counterUav#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+cu:AuthorizationRecordEvidenceShape a sh:NodeShape ;
+    sh:property [ sh:datatype xsd:dateTime ;
+            sh:maxCount 1 ;
+            sh:message "receivedAt 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:receivedAt ],
+        [ sh:datatype xsd:dateTime ;
+            sh:maxCount 1 ;
+            sh:message "validUntil 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:validUntil ],
+        [ sh:datatype xsd:string ;
+            sh:maxCount 1 ;
+            sh:message "authoritySource 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:authoritySource ],
+        [ sh:class cu:EvidenceRegion ;
+            sh:maxCount 1 ;
+            sh:message "authorizationRegion 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:authorizationRegion ],
+        [ sh:datatype xsd:string ;
+            sh:in ( "authorized"^^xsd:string "unauthorized"^^xsd:string "unknown"^^xsd:string ) ;
+            sh:maxCount 1 ;
+            sh:message "authorizationStatus 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:authorizationStatus ],
+        [ sh:datatype xsd:dateTime ;
+            sh:maxCount 1 ;
+            sh:message "validFrom 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:validFrom ],
+        [ sh:datatype xsd:string ;
+            sh:in ( "simulated"^^xsd:string "unverified"^^xsd:string "operational"^^xsd:string ) ;
+            sh:maxCount 1 ;
+            sh:message "dataMode 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:dataMode ] ;
+    sh:targetClass cu:AuthorizationRecord .
+
+cu:EvidenceJudgementEvidenceShape a sh:NodeShape ;
+    sh:or ( [ sh:property [ sh:maxCount 0 ;
+                        sh:path cu:algorithmScore ] ] [ sh:property [ sh:datatype xsd:string ;
+                        sh:maxCount 1 ;
+                        sh:message "scoreMeaning 的数量、类型或允许值不符合证据约束"@zh ;
+                        sh:minCount 1 ;
+                        sh:path cu:scoreMeaning ] ] ) ;
+    sh:property [ sh:datatype xsd:string ;
+            sh:maxCount 1 ;
+            sh:message "methodVersion 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:methodVersion ],
+        [ sh:datatype xsd:double ;
+            sh:maxCount 1 ;
+            sh:message "algorithmScore 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:path cu:algorithmScore ],
+        [ sh:datatype xsd:dateTime ;
+            sh:maxCount 1 ;
+            sh:message "receivedAt 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:receivedAt ],
+        [ sh:datatype xsd:string ;
+            sh:maxCount 1 ;
+            sh:message "scoreMeaning 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:path cu:scoreMeaning ],
+        [ sh:class cu:SuspectedTarget ;
+            sh:maxCount 1 ;
+            sh:message "judgesHypothesis 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:judgesHypothesis ],
+        [ sh:datatype xsd:string ;
+            sh:maxCount 1 ;
+            sh:message "independenceNote 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:independenceNote ],
+        [ sh:class cu:SensorObservation ;
+            sh:path cu:inputObservation ],
+        [ sh:datatype xsd:string ;
+            sh:maxCount 1 ;
+            sh:message "methodName 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:methodName ],
+        [ sh:datatype xsd:string ;
+            sh:in ( "suspected"^^xsd:string "pending"^^xsd:string "insufficient"^^xsd:string "conflict"^^xsd:string ) ;
+            sh:maxCount 1 ;
+            sh:message "reportedJudgementStatus 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:reportedJudgementStatus ],
+        [ sh:datatype xsd:dateTime ;
+            sh:maxCount 1 ;
+            sh:message "generatedAt 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:generatedAt ],
+        [ sh:datatype xsd:string ;
+            sh:maxCount 1 ;
+            sh:message "applicableConditions 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:applicableConditions ],
+        [ sh:datatype xsd:string ;
+            sh:in ( "association"^^xsd:string "identification"^^xsd:string "intrusion"^^xsd:string ) ;
+            sh:maxCount 1 ;
+            sh:message "judgementLayer 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:judgementLayer ],
+        [ sh:datatype xsd:string ;
+            sh:in ( "simulated"^^xsd:string "unverified"^^xsd:string "operational"^^xsd:string ) ;
+            sh:maxCount 1 ;
+            sh:message "dataMode 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:dataMode ],
+        [ sh:datatype xsd:string ;
+            sh:maxCount 1 ;
+            sh:message "uncertaintyNote 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:uncertaintyNote ] ;
+    sh:targetClass cu:EvidenceJudgement .
+
+cu:EvidenceRegionEvidenceShape a sh:NodeShape ;
+    sh:property [ sh:datatype xsd:string ;
+            sh:in ( "simulated"^^xsd:string "unverified"^^xsd:string "operational"^^xsd:string ) ;
+            sh:maxCount 1 ;
+            sh:message "dataMode 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:dataMode ],
+        [ sh:datatype xsd:dateTime ;
+            sh:maxCount 1 ;
+            sh:message "receivedAt 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:receivedAt ],
+        [ sh:datatype xsd:string ;
+            sh:maxCount 1 ;
+            sh:message "geometryRef 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:geometryRef ] ;
+    sh:targetClass cu:EvidenceRegion .
+
+cu:SensorDeviceEvidenceShape a sh:NodeShape ;
+    sh:property [ sh:datatype xsd:string ;
+            sh:in ( "simulated"^^xsd:string "unverified"^^xsd:string "operational"^^xsd:string ) ;
+            sh:maxCount 1 ;
+            sh:message "dataMode 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:dataMode ],
+        [ sh:datatype xsd:dateTime ;
+            sh:maxCount 1 ;
+            sh:message "reportedAt 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:reportedAt ],
+        [ sh:datatype xsd:string ;
+            sh:in ( "radar"^^xsd:string "radio"^^xsd:string "camera"^^xsd:string "infrared"^^xsd:string ) ;
+            sh:maxCount 1 ;
+            sh:message "sensorKind 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:sensorKind ],
+        [ sh:datatype xsd:string ;
+            sh:in ( "normal"^^xsd:string "fault"^^xsd:string "unknown"^^xsd:string ) ;
+            sh:maxCount 1 ;
+            sh:message "reportedDeviceStatus 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:reportedDeviceStatus ],
+        [ sh:datatype xsd:dateTime ;
+            sh:maxCount 1 ;
+            sh:message "receivedAt 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:receivedAt ] ;
+    sh:targetClass cu:SensorDevice .
+
+cu:SensorObservationEvidenceShape a sh:NodeShape ;
+    sh:property [ sh:datatype xsd:string ;
+            sh:in ( "simulated"^^xsd:string "unverified"^^xsd:string "operational"^^xsd:string ) ;
+            sh:maxCount 1 ;
+            sh:message "dataMode 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:dataMode ],
+        [ sh:datatype xsd:dateTime ;
+            sh:maxCount 1 ;
+            sh:message "receivedAt 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:receivedAt ],
+        [ sh:datatype xsd:string ;
+            sh:in ( "usable"^^xsd:string "invalid"^^xsd:string "unknown"^^xsd:string ) ;
+            sh:maxCount 1 ;
+            sh:message "inputQuality 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:inputQuality ],
+        [ sh:datatype xsd:string ;
+            sh:in ( "WGS84"^^xsd:string "unknown"^^xsd:string ) ;
+            sh:maxCount 1 ;
+            sh:message "coordinateSystem 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:coordinateSystem ],
+        [ sh:datatype xsd:double ;
+            sh:maxCount 1 ;
+            sh:maxInclusive 180 ;
+            sh:message "lon 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minInclusive -180 ;
+            sh:path cu:lon ],
+        [ sh:datatype xsd:string ;
+            sh:maxCount 1 ;
+            sh:message "rawEvidenceRef 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:rawEvidenceRef ],
+        [ sh:datatype xsd:string ;
+            sh:in ( "detected"^^xsd:string "not_detected"^^xsd:string "unknown"^^xsd:string ) ;
+            sh:maxCount 1 ;
+            sh:message "detectionOutcome 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:detectionOutcome ],
+        [ sh:datatype xsd:dateTime ;
+            sh:maxCount 1 ;
+            sh:message "observedAt 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:observedAt ],
+        [ sh:datatype xsd:double ;
+            sh:maxCount 1 ;
+            sh:maxInclusive 90 ;
+            sh:message "lat 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minInclusive -90 ;
+            sh:path cu:lat ],
+        [ sh:class cu:SensorDevice ;
+            sh:maxCount 1 ;
+            sh:message "fromDevice 的数量、类型或允许值不符合证据约束"@zh ;
+            sh:minCount 1 ;
+            sh:path cu:fromDevice ] ;
+    sh:targetClass cu:SensorObservation .
+

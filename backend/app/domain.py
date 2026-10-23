@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Literal as Choice
 from urllib.parse import quote
 import hashlib
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -25,6 +26,7 @@ class Track(BaseModel):
     target_id: str = Field(min_length=1, max_length=100, pattern=r'^[A-Za-z0-9_-]+$')
     name: str = Field(default='', max_length=80)
     source: str = Field(default='MQTT', min_length=1, max_length=100)
+    data_mode: Choice['simulated','unverified','operational'] = 'unverified'
     lon: float = Field(ge=-180, le=180)
     lat: float = Field(ge=-90, le=90)
     speed: float = Field(ge=0)
@@ -89,7 +91,8 @@ def observation_graphs(track, config):
     state.add((target, CU.latestObservation, observation))
     values = [('name', name, XSD.string), ('lon', track.lon, XSD.double),
               ('lat', track.lat, XSD.double), ('speed', track.speed, XSD.double),
-              ('timestamp', track.timestamp, XSD.dateTime), ('source', track.source, XSD.string)]
+              ('timestamp', track.timestamp, XSD.dateTime), ('source', track.source, XSD.string),
+              ('dataMode',track.data_mode,XSD.string)]
     add_values(state, target, values)
     history.add((observation, RDF.type, CU.Observation))
     history.add((observation, CU.ofTarget, target))

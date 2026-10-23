@@ -4,6 +4,7 @@ import threading
 import time
 import paho.mqtt.client as mqtt
 from .domain import Track
+from .evidence import SensorObservation, save as save_evidence
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ class Consumer:
     def on_connect(self, client, userdata, flags, reason_code, properties):
         self.connected = not reason_code.is_failure
         if self.connected:
-            client.subscribe(self.settings.mqtt_topic, qos=1)
+            client.subscribe([(self.settings.mqtt_topic,1),(self.settings.mqtt_observation_topic,1)])
             logger.info('MQTT连接成功并订阅 %s', self.settings.mqtt_topic)
 
     def on_disconnect(self, client, userdata, flags, reason_code, properties):
@@ -38,7 +39,8 @@ class Consumer:
         try:
             if len(message.payload) > 16384:
                 raise ValueError('报文超过16KB')
-            track = Track.model_validate_json(message.payload)
+            model = SensorObservation if getattr(message,'topic',None)==self.settings.mqtt_observation_topic else Track
+            track = model.model_validate_json(message.payload)
             self.queue.put_nowait(track)
         except queue.Full:
             self.dropped += 1
@@ -55,9 +57,16 @@ class Consumer:
                 continue
             for attempt in range(3):
                 try:
-                    self.store.write_track(track)
+                    if isinstance(track,SensorObservation):
+                        save_evidence(self.store,'observations',track)
+                    else:
+                        self.store.write_track(track)
                     self.last_write = time.time()
                     self.last_error = None
+                    break
+                except ValueError:
+                    self.rejected += 1
+                    logger.warning('已拒绝不符合证据引用或保留策略的记录')
                     break
                 except Exception:
                     self.last_error = '实例写入失败，请查看后端日志'

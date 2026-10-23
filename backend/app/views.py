@@ -35,11 +35,11 @@ def assessment_view(g, s):
         'position_lat': number(g, s, 'positionLat'), 'distance': distance,
         'level': level, 'level_label': label, 'color': color, 'reason': reason,
         'timestamp': text(g, s, 'timestamp'), 'observation_id': str(observation).split('#')[-1],
-        'source': text(g, observation, 'source'), 'rule_version': text(g, rule, 'ruleVersion'),
+        'source': text(g, observation, 'source'), 'data_mode':text(g,observation,'dataMode','unverified'), 'rule_version': text(g, rule, 'ruleVersion'),
         'thresholds': thresholds, 'stale_seconds': number(g, rule, 'staleSeconds'),
         'observation': {'id': str(observation).split('#')[-1], 'lon': number(g, observation, 'lon'),
                         'lat': number(g, observation, 'lat'), 'speed': number(g, observation, 'speed'),
-                        'timestamp': text(g, observation, 'timestamp'), 'source': text(g, observation, 'source')}}
+                        'timestamp': text(g, observation, 'timestamp'), 'source': text(g, observation, 'source'), 'data_mode':text(g,observation,'dataMode','unverified')}}
 
 
 def situation_view(g, config, at=None):
@@ -65,7 +65,7 @@ def situation_view(g, config, at=None):
         nearest = evaluations[0] if evaluations else None
         targets.append({'id':str(target).split('#')[-1], 'uri':str(target), 'name':text(g, obs, 'name'),
             'lon':number(g, obs, 'lon'), 'lat':number(g, obs, 'lat'), 'speed':number(g, obs, 'speed'),
-            'timestamp':stamp, 'source':text(g, obs, 'source'), 'observation_id':str(obs).split('#')[-1],
+            'timestamp':stamp, 'source':text(g, obs, 'source'), 'data_mode':text(g,obs,'dataMode','unverified'), 'observation_id':str(obs).split('#')[-1],
             'age_seconds':round(age,1), 'stale':age > (nearest['stale_seconds'] if at and nearest else config.stale_seconds),
             'assessments':evaluations, 'nearest_assessment':nearest})
         assessments.extend(evaluations)

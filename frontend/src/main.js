@@ -13,11 +13,12 @@ import template from "./template.js";
 import { mergeTrail, trailSegments } from "./map-utils.js";
 import LearningWorkbench from "./learning.js";
 import AgentPanel from "./agent-panel.js";
+import EvidenceWorkbench from "./evidence.js";
 const droneSvg = `<svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="7" cy="7" r="4"/><circle cx="25" cy="7" r="4"/><circle cx="7" cy="25" r="4"/><circle cx="25" cy="25" r="4"/><path d="M10 10l12 12M22 10L10 22"/><rect x="12" y="11" width="8" height="10" rx="3" fill="currentColor"/></g></svg>`;
 const positionSvg = `<svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round"><path d="M5 27h22M8 27V15l8-6 8 6v12M13 27v-7h6v7M16 9V3h9l-3 3 3 3h-9"/></g></svg>`;
 
 createApp({
-  components: { LearningWorkbench, AgentPanel },
+  components: { LearningWorkbench, AgentPanel, EvidenceWorkbench },
   setup() {
     const data = ref(null),
       health = ref(null),
@@ -126,6 +127,24 @@ createApp({
     async function openLearning() {
       await changeView('learning');
       document.getElementById('learning-panel')?.scrollIntoView?.({block:'start'});
+    }
+    async function openEvidence() {
+      await changeView('learning');
+      document.getElementById('evidence-panel')?.scrollIntoView?.({block:'start'});
+    }
+    let evidenceLayer;
+    function clearEvidencePoint() { evidenceLayer?.clearLayers(); }
+    async function locateEvidence(o) {
+      if(o.outcome!=='detected'||o.crs!=='WGS84'||!Number.isFinite(o.lon)||!Number.isFinite(o.lat))return;
+      await changeView('learning');
+      evidenceLayer ||= L.layerGroup().addTo(map);
+      clearEvidencePoint();
+      const label=document.createElement('span');
+      label.textContent='原始观测（非确认无人机） · '+o.id+' · '+(({simulated:'模拟数据',operational:'业务接入声明（未验证）'})[o.data_mode]||'来源待核实')+' · '+o.observed_at+' · '+(o.fresh?'时间有效':'已过期');
+      L.circleMarker([o.lat,o.lon],{radius:10,color:'#c084fc',weight:3,fillOpacity:.25}).bindTooltip(label).addTo(evidenceLayer);
+      map.setView([o.lat,o.lon],16,{animate:false});
+      document.getElementById('map')?.scrollIntoView?.({block:'center'});
+      notice('已定位原始观测；不表示同一目标或确认无人机。');
     }
     const groups = computed(() =>
       ["类", "对象属性", "数据属性"].map((kind) => ({
@@ -604,6 +623,9 @@ createApp({
       changeView,
       locateAgentCandidate,
       openLearning,
+      openEvidence,
+      locateEvidence,
+      clearEvidencePoint,
       request,
       highlightQuery,
       focusQueryRow,

@@ -128,9 +128,18 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
   const termItem = {uri:termURI,id:'Observation',kind:'类',label:'观测记录',domain:[],range:[]};
   let learningSource = 'business';
   const queryCalls = [];
+  let evidenceLoaded=false;
+  const evidenceCalls=[];
+  const evidenceData={devices:[{id:'radar',name:'模拟雷达',sensor_kind:'radar',data_mode:'simulated',reported_status:'normal',effective_status:'normal',effective_coverage:'unknown',status_fresh:true,reported_at:at,source:'模拟器',observation_note:'已有观测；身份未知'}],observations:[{id:'raw-positive',device_name:'模拟雷达',data_mode:'simulated',outcome:'detected',quality:'usable',fresh:true,usable_positive:true,mode_consistent:true,crs:'WGS84',lon:116.408,lat:39.9045,raw_evidence_ref:'urn:demo:positive',observed_at:at,received_at:at},{id:'raw-negative',device_name:'模拟红外',data_mode:'simulated',outcome:'not_detected',quality:'usable',fresh:true,usable_positive:false,mode_consistent:true,crs:'WGS84',lon:116.408,lat:39.9045,raw_evidence_ref:'urn:demo:negative',observed_at:at,received_at:at}],judgements:[{id:'j1',layer:'association',layer_label:'观测关联',current_status:'suspected',current_label:'疑似',status:'suspected',target_ref:'hypothesis',data_mode:'simulated',observation_ids:['raw-positive'],judgement_ids:[],method_name:'手工演示',method_version:'v1',source:'operator',conditions:'占位记录',uncertainty:'未验证',independence_note:'未知',gaps:['未实现融合算法']},{id:'j2',layer:'intrusion',layer_label:'异常闯入条件',current_status:'pending',current_label:'待核实',status:'pending',target_ref:'hypothesis',data_mode:'simulated',observation_ids:['raw-positive'],judgement_ids:[],region_id:'region1',authorization_status:'unknown',conditions:'待验证',uncertainty:'未知',gaps:['授权未知不能判为未授权']}],regions:[],authorizations:[]};
+
   win.fetch = async (url, opts = {}) => {
     let json;
-    if (url === '/api/agent/questions') json = {items:[{id:'attention',label:'哪些无人机最需关注？'},{id:'nearest',label:'哪些无人机距离阵地最近？'}],llm_configured:false};
+    if (url === '/api/evidence') json=evidenceLoaded?evidenceData:{devices:[],observations:[],judgements:[],regions:[],authorizations:[]};
+    else if(url === '/api/evidence/demo'){evidenceLoaded=true;json={status:'saved'};}
+    else if(url === '/api/evidence/examples')json={devices:{id:'sample-radar',data_mode:'simulated'}};
+    else if(url === '/api/evidence/devices'){evidenceCalls.push(opts);json={status:'saved'};}
+    else if(url === '/api/evidence/validate')json={conforms:true,focus_count:12,result_count:0,results:[],report_ttl:'sh:ValidationReport'};
+    else if (url === '/api/agent/questions') json = {items:[{id:'attention',label:'哪些无人机最需关注？'},{id:'nearest',label:'哪些无人机距离阵地最近？'}],llm_configured:false};
     else if (url === '/api/agent/ask') {
       const messages=[['snapshot',{position:positions[0],policy:{label:'距离关注排序策略 V1',description:'等级 → 时间 → 距离'},at,eligible:3,excluded:[],ttl:'cu:test a cu:SituationAnalysis .'}],
         ['candidate',{rank:1,target_id:'drone002',name:'无人机002',level_label:'高关注',distance:80,eta_seconds:0,reason:'距离80米',timestamp:at}],
@@ -295,6 +304,24 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     await until(() => doc.querySelector('.agent-evidence pre')?.textContent.includes('SituationAnalysis'));
     doc.querySelector('[aria-label="收起智能问答"]').click();
     await until(() => doc.querySelector('.agent-orb'));
+    button('多源观测与证据').click();
+    await until(()=>doc.querySelector('#evidence-panel')?.textContent.includes('尚无设备'));
+    button('导入模拟示例').click();
+    await until(()=>doc.querySelector('#evidence-panel')?.textContent.includes('raw-positive'));
+    assert.equal([...doc.querySelectorAll('#evidence-panel button')].filter(b=>b.textContent==='定位原始观测').length,1,'未检出观测不能作为目标定位');
+    button('定位原始观测').click();
+    await until(()=>doc.querySelector('.leaflet-interactive'));
+    button('③ 异常闯入条件').click();
+    await until(()=>doc.querySelector('.evidence-card')?.textContent.includes('授权未知不能判为未授权'));
+    assert.ok(!doc.querySelector('.evidence-card').textContent.includes('raw-negative'));
+    button('SHACL 结构校验').click();
+    await until(()=>doc.querySelector('.evidence-report')?.textContent.includes('12 个校验对象'));
+    button('载入可编辑示例').click();
+    await until(()=>doc.querySelector('[aria-label="证据 JSON 数据"]').value.includes('sample-radar'));
+    button('登记当前记录').click();
+    await until(()=>evidenceCalls.length===1);
+    assert.equal(evidenceCalls[0].headers['Content-Type'],'application/json');
+    assert.equal(JSON.parse(evidenceCalls[0].body).data_mode,'simulated');
     assert.deepEqual(errors, []);
   } finally {
     dom.window.close();

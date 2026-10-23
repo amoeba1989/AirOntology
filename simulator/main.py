@@ -49,7 +49,7 @@ try:
             old = previous.get(target_id)
             speed = 0 if old is None else geod.inv(old[0], old[1], target_lon, target_lat)[2]/max(.001, now-old[2])
             payload = json.dumps({'target_id': target_id, 'name':f'无人机{index:03d}',
-                'source':'固定航线模拟器', 'lon':target_lon, 'lat':target_lat, 'speed':speed,
+                'source':'固定航线模拟器', 'data_mode':'simulated', 'lon':target_lon, 'lat':target_lat, 'speed':speed,
                 'timestamp':datetime.now(timezone.utc).isoformat()})
             result = client.publish(os.getenv('MQTT_TOPIC', 'counteruav/track/blue'), payload, qos=1, retain=False)
             if result.rc == mqtt.MQTT_ERR_SUCCESS:

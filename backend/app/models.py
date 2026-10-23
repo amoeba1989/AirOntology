@@ -15,6 +15,8 @@ RESERVED = {'runtime', 'BlueDevice', 'Position', 'DistanceLevel', 'Observation',
 
 RESERVED.update({'analysisPosition', 'AttentionRankingPolicy', 'SituationAnalysis', 'RankedCandidate', 'sortKeys', 'levelOrder', 'hasCandidate', 'usedRankingPolicy', 'basedOnAssessment', 'previousObservation', 'rank', 'levelPriority', 'closingSpeed', 'etaToHighAttention', 'targetIdentifier', 'missingEta', 'maxTrendGapSeconds', 'attention-policy-v1', 'nearest-policy-v1'})
 
+RESERVED.update({'algorithmScore', 'methodName', 'horizontalErrorMeters', 'authorizationRegion', 'usesAuthorization', 'judgementLayer', 'SensorDevice', 'receivedAt', 'scoreMeaning', 'evidenceSource', 'fromDevice', 'subjectReference', 'CameraSensor', 'SuspectedTarget', 'applicableConditions', 'inputObservation', 'AssociationJudgement', 'RadarSensor', 'recordJson', 'dataMode', 'InfraredSensor', 'inputJudgement', 'coordinateSystem', 'validFrom', 'judgesHypothesis', 'concernsRegion', 'IntrusionConditionJudgement', 'uncertaintyNote', 'observedFeatures', 'RadioSensor', 'SensorObservation', 'reportedCoverage', 'reportedAt', 'reportedTargetRef', 'generatedAt', 'detectionOutcome', 'rawEvidenceRef', 'IdentificationJudgement', 'validationRef', 'independenceNote', 'inputQuality', 'validUntil', 'reportedJudgementStatus', 'AuthorizationRecord', 'observedAt', 'authoritySource', 'EvidenceJudgement', 'reportedDeviceStatus', 'geometryRef', 'sensorKind', 'authorizationStatus', 'methodVersion', 'regionDescription', 'EvidenceRegion'})
+
 def valid_identifier(value):
     if value in RESERVED or value.startswith(('obs-', 'eval-', 'rule-', 'analysis-', 'rank-')):
         raise ValueError('编号与本体保留名称冲突，请使用drone001、pos001等业务编号')
@@ -60,3 +62,5 @@ class RuntimeConfig(BaseModel):
 class ConfigChange(BaseModel):
     expected_version: str
     config: RuntimeConfig
+
+RESERVED.update({'deviceStateAtReceipt','validForSeconds'})

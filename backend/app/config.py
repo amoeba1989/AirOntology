@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     mqtt_host: str = 'localhost'
     mqtt_port: int = 1883
     mqtt_topic: str = 'counteruav/track/blue'
+    mqtt_observation_topic: str = 'counteruav/observation/raw'
     mqtt_client_id: str = 'airontology-consumer'
     position_id: str = 'pos001'
     position_name: str = '一号阵地'

@@ -166,9 +166,9 @@ def validate_facts(facts, directory):
                         'shape': str(report.value(result, SH.sourceShape) or ''),
                         'severity': str(report.value(result, SH.resultSeverity) or '')})
     results.sort(key=lambda r: (r['focus'], r['path'], r['message']))
-    focus_count = len(set(s for kind in (CU.Observation, CU.Assessment, CU.Position)
+    focus_count = len(set(s for kind in set(shapes.objects(None, SH.targetClass))
                           for s in facts.subjects(RDF.type, kind)))
     return {'conforms': bool(conforms), 'results': results[:100], 'result_count': len(results),
             'focus_count': focus_count, 'triple_count': len(facts),
             'report_ttl': report.serialize(format='turtle'), 'inference': 'none',
-            'note': '仅检查显式声明为观测、评估、阵地的实例；无对应实例不代表业务数据完整。最多展示 100 条错误。'}
+            'note': '仅检查 shapes.ttl 中目标类的显式实例；无对应实例不代表业务数据完整；不验证算法性能或真实性。最多展示 100 条错误。'}

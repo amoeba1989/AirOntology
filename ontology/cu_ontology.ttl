@@ -3,7 +3,7 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-cu: a owl:Ontology ; rdfs:label "无人机观测与评估本体"@zh ; owl:versionInfo "2.2.0" ;
+cu: a owl:Ontology ; rdfs:label "无人机观测与评估本体"@zh ; owl:versionInfo "2.3.0" ;
  rdfs:comment "Python计算距离和等级；RDF关联目标、观测、阵地与规则。未启用自动推理。"@zh .
 
 cu:BlueDevice a owl:Class ; rdfs:label "无人机目标"@zh ; rdfs:comment "持续存在的目标对象，不直接保存多个阵地的距离。"@zh .
@@ -59,3 +59,62 @@ cu:etaToHighAttention a owl:DatatypeProperty ; rdfs:label "预计进入高关注
 cu:targetIdentifier a owl:DatatypeProperty ; rdfs:label "排序用目标编号"@zh ; rdfs:range xsd:string .
 cu:missingEta a owl:DatatypeProperty ; rdfs:label "未知预计时间的排序位置"@zh ; rdfs:domain cu:AttentionRankingPolicy ; rdfs:range xsd:string .
 cu:maxTrendGapSeconds a owl:DatatypeProperty ; rdfs:label "趋势观测最大间隔（秒）"@zh ; rdfs:range xsd:integer .
+
+# 多源观测与证据分层：不自动融合或识别。
+cu:SensorDevice a owl:Class ; rdfs:label "探测设备"@zh ; rdfs:comment "来源设备的登记信息；状态和覆盖是来源声明，不证明探测能力。"@zh .
+cu:RadarSensor a owl:Class ; rdfs:label "雷达设备"@zh ; rdfs:comment "雷达观测来源。"@zh ; rdfs:subClassOf cu:SensorDevice .
+cu:RadioSensor a owl:Class ; rdfs:label "无线电设备"@zh ; rdfs:comment "无线电观测来源。"@zh ; rdfs:subClassOf cu:SensorDevice .
+cu:CameraSensor a owl:Class ; rdfs:label "摄像头设备"@zh ; rdfs:comment "可见光图像观测来源。"@zh ; rdfs:subClassOf cu:SensorDevice .
+cu:InfraredSensor a owl:Class ; rdfs:label "红外设备"@zh ; rdfs:comment "红外观测来源。"@zh ; rdfs:subClassOf cu:SensorDevice .
+cu:SensorObservation a owl:Class ; rdfs:label "原始设备观测"@zh ; rdfs:comment "与已有汇总航迹 Observation 分开；观测检出不证明无人机身份。"@zh .
+cu:SuspectedTarget a owl:Class ; rdfs:label "疑似目标引用"@zh ; rdfs:comment "用于串联待验证证据；不继承无人机类，不自动成为已确认无人机。"@zh .
+cu:EvidenceJudgement a owl:Class ; rdfs:label "证据判断记录"@zh ; rdfs:comment "保留来源状态、输入、方法、版本、条件和不确定性；当前只接收未确认状态。"@zh .
+cu:AssociationJudgement a owl:Class ; rdfs:label "观测关联判断"@zh ; rdfs:comment "这些观测是否可能属于同一目标；不能据此推断无人机身份。"@zh ; rdfs:subClassOf cu:EvidenceJudgement .
+cu:IdentificationJudgement a owl:Class ; rdfs:label "无人机身份判断"@zh ; rdfs:comment "目标是否为无人机需要独立识别依据；不由观测关联自动产生。"@zh ; rdfs:subClassOf cu:EvidenceJudgement .
+cu:IntrusionConditionJudgement a owl:Class ; rdfs:label "异常闯入条件判断"@zh ; rdfs:comment "需独立核实身份、区域时空关系及授权；授权未知不等于未授权。"@zh ; rdfs:subClassOf cu:EvidenceJudgement .
+cu:EvidenceRegion a owl:Class ; rdfs:label "证据关联区域"@zh ; rdfs:comment "保存区域及几何引用；本版本不验证空间包含关系。"@zh .
+cu:AuthorizationRecord a owl:Class ; rdfs:label "授权来源记录"@zh ; rdfs:comment "显式登记授权声明、主体、区域和有效期；缺失或过期均为未知。"@zh .
+cu:fromDevice a owl:ObjectProperty ; rdfs:label "来源探测设备"@zh ; rdfs:domain cu:SensorObservation ; rdfs:range cu:SensorDevice .
+cu:inputObservation a owl:ObjectProperty ; rdfs:label "输入原始观测"@zh ; rdfs:domain cu:EvidenceJudgement ; rdfs:range cu:SensorObservation .
+cu:inputJudgement a owl:ObjectProperty ; rdfs:label "引用已有判断"@zh ; rdfs:domain cu:EvidenceJudgement ; rdfs:range cu:EvidenceJudgement .
+cu:judgesHypothesis a owl:ObjectProperty ; rdfs:label "针对疑似目标引用"@zh ; rdfs:domain cu:EvidenceJudgement ; rdfs:range cu:SuspectedTarget .
+cu:concernsRegion a owl:ObjectProperty ; rdfs:label "涉及区域"@zh ; rdfs:domain cu:EvidenceJudgement ; rdfs:range cu:EvidenceRegion .
+cu:usesAuthorization a owl:ObjectProperty ; rdfs:label "采用授权来源记录"@zh ; rdfs:domain cu:EvidenceJudgement ; rdfs:range cu:AuthorizationRecord .
+cu:authorizationRegion a owl:ObjectProperty ; rdfs:label "授权涉及区域"@zh ; rdfs:domain cu:AuthorizationRecord ; rdfs:range cu:EvidenceRegion .
+cu:dataMode a owl:DatatypeProperty ; rdfs:label "数据声明类型：模拟、待核实或业务接入"@zh ; rdfs:range xsd:string .
+cu:recordJson a owl:DatatypeProperty ; rdfs:label "来源记录规范JSON（保持不可变）"@zh ; rdfs:range xsd:string .
+cu:receivedAt a owl:DatatypeProperty ; rdfs:label "服务器接收时间"@zh ; rdfs:range xsd:dateTime .
+cu:sensorKind a owl:DatatypeProperty ; rdfs:label "设备类型：雷达、无线电、摄像头、红外"@zh ; rdfs:range xsd:string .
+cu:reportedDeviceStatus a owl:DatatypeProperty ; rdfs:label "设备来源报告状态"@zh ; rdfs:range xsd:string .
+cu:reportedCoverage a owl:DatatypeProperty ; rdfs:label "覆盖来源声明"@zh ; rdfs:range xsd:string .
+cu:reportedAt a owl:DatatypeProperty ; rdfs:label "来源状态时间"@zh ; rdfs:range xsd:dateTime .
+cu:evidenceSource a owl:DatatypeProperty ; rdfs:label "判断或设备的来源"@zh ; rdfs:range xsd:string .
+cu:observedAt a owl:DatatypeProperty ; rdfs:label "原始观测时间"@zh ; rdfs:range xsd:dateTime .
+cu:coordinateSystem a owl:DatatypeProperty ; rdfs:label "坐标系声明"@zh ; rdfs:range xsd:string .
+cu:horizontalErrorMeters a owl:DatatypeProperty ; rdfs:label "来源报告水平误差（米）"@zh ; rdfs:range xsd:double .
+cu:detectionOutcome a owl:DatatypeProperty ; rdfs:label "检出结果：检出、未检出或未知"@zh ; rdfs:range xsd:string .
+cu:inputQuality a owl:DatatypeProperty ; rdfs:label "来源报告数据质量"@zh ; rdfs:range xsd:string .
+cu:observedFeatures a owl:DatatypeProperty ; rdfs:label "来源记录的目标特征"@zh ; rdfs:range xsd:string .
+cu:rawEvidenceRef a owl:DatatypeProperty ; rdfs:label "原始证据引用（不自动抓取）"@zh ; rdfs:range xsd:string .
+cu:reportedTargetRef a owl:DatatypeProperty ; rdfs:label "设备原始目标引用（不证明同一目标）"@zh ; rdfs:range xsd:string .
+cu:regionDescription a owl:DatatypeProperty ; rdfs:label "区域说明"@zh ; rdfs:range xsd:string .
+cu:geometryRef a owl:DatatypeProperty ; rdfs:label "几何数据引用（尚未验证包含）"@zh ; rdfs:range xsd:string .
+cu:subjectReference a owl:DatatypeProperty ; rdfs:label "授权主体外部引用"@zh ; rdfs:range xsd:string .
+cu:authorizationStatus a owl:DatatypeProperty ; rdfs:label "授权来源声明：有授权、明确未授权或未知"@zh ; rdfs:range xsd:string .
+cu:validFrom a owl:DatatypeProperty ; rdfs:label "有效期开始"@zh ; rdfs:range xsd:dateTime .
+cu:validUntil a owl:DatatypeProperty ; rdfs:label "有效期结束"@zh ; rdfs:range xsd:dateTime .
+cu:authoritySource a owl:DatatypeProperty ; rdfs:label "授权信息来源机构"@zh ; rdfs:range xsd:string .
+cu:judgementLayer a owl:DatatypeProperty ; rdfs:label "判断层次：关联、识别、闯入条件"@zh ; rdfs:range xsd:string .
+cu:reportedJudgementStatus a owl:DatatypeProperty ; rdfs:label "来源登记的未确认判断状态"@zh ; rdfs:range xsd:string .
+cu:applicableConditions a owl:DatatypeProperty ; rdfs:label "方法或判断的适用条件"@zh ; rdfs:range xsd:string .
+cu:uncertaintyNote a owl:DatatypeProperty ; rdfs:label "不确定性及信息缺口"@zh ; rdfs:range xsd:string .
+cu:methodName a owl:DatatypeProperty ; rdfs:label "算法、规则或人工方法名称"@zh ; rdfs:range xsd:string .
+cu:methodVersion a owl:DatatypeProperty ; rdfs:label "算法、规则或人工方法版本"@zh ; rdfs:range xsd:string .
+cu:validationRef a owl:DatatypeProperty ; rdfs:label "独立验证材料引用（不等同于已完成验证）"@zh ; rdfs:range xsd:string .
+cu:independenceNote a owl:DatatypeProperty ; rdfs:label "证据独立性与同源关系说明"@zh ; rdfs:range xsd:string .
+cu:algorithmScore a owl:DatatypeProperty ; rdfs:label "来源原始算法分数（不作为概率）"@zh ; rdfs:range xsd:double .
+cu:scoreMeaning a owl:DatatypeProperty ; rdfs:label "原始分数的明示含义"@zh ; rdfs:range xsd:string .
+cu:generatedAt a owl:DatatypeProperty ; rdfs:label "判断来源生成时间"@zh ; rdfs:range xsd:dateTime .
+
+cu:deviceStateAtReceipt a owl:DatatypeProperty ; rdfs:label "接收观测时的设备状态快照"@zh ; rdfs:range xsd:string .
+cu:validForSeconds a owl:DatatypeProperty ; rdfs:label "声明有效时长（秒）"@zh ; rdfs:range xsd:integer .

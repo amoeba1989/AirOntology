@@ -16,7 +16,7 @@ export default `
       <div><span class="metric-label">选中目标 / 选中阵地</span><strong class="level-metric" :style="{color:assessment?.color}">{{assessment?.level_label || '待评估'}}</strong></div>
       <div class="dependency"><span :class="{connected:health?.mqtt.connected}">● MQTT {{health?.mqtt.connected?'已连接':'未连接'}}</span><span :class="{connected:health?.fuseki}">● Fuseki {{health?.fuseki?'可用':'未连接'}}</span></div>
     </div>
-    <nav class="knowledge-nav" aria-label="本体导航"><a href="#alarm-panel">告警看板</a><button @click="openLearning">本体学习工作台</button><button @click="openKnowledge('structure')">TBox · 类与属性定义</button><button @click="openKnowledge('abox')">ABox · 实例与关系</button></nav>
+    <nav class="knowledge-nav" aria-label="本体导航"><a href="#alarm-panel">告警看板</a><button @click="openLearning">本体学习工作台</button><button @click="openEvidence">多源观测与证据</button><button @click="openKnowledge('structure')">TBox · 类与属性定义</button><button @click="openKnowledge('abox')">ABox · 实例与关系</button></nav>
     <section id="alarm-panel" class="alarm-panel" :class="{urgent:alarmEntries.some(a=>a.level==='HighAttention')}" aria-labelledby="alarm-title">
       <div class="alarm-heading"><h2 id="alarm-title">{{mode==='live'?'实时距离告警':'历史快照 · 距离告警'}}</h2><strong>{{alarmEntries.length}} 条关注 · {{staleTargets.length}} 架数据过期</strong><span>{{formatTime(data?.at)}}</span></div>
       <p class="alarm-help">覆盖所有阵地，同一无人机可关联多条告警；仅按距离分级，不代表黑飞或综合威胁。{{mode==='live'?'随实时态势刷新。':'当前显示历史数据。'}}</p>
@@ -44,7 +44,7 @@ export default `
         <div class="panel-heading"><h2><span class="section-index">02</span>对象详情</h2><span class="tag">实例</span></div>
         <div class="selection-fields"><label>无人机<select aria-label="选择无人机" :value="target?.id" @change="chooseTarget($event.target.value)"><option v-for="t in data?.targets" :value="t.id">{{t.name}}</option></select></label><label>阵地<select aria-label="选择阵地" :value="point?.id" @change="choosePosition($event.target.value)"><option v-for="p in data?.positions" :value="p.id">{{p.name}}</option></select></label></div>
         <template v-if="target"><div class="object-state" :style="{color:target.stale?'#87939e':assessment?.color}">● {{target.stale?'观测数据已过期':assessment?.level_label||'待新观测评估'}}</div>
-          <dl><div><dt>经度 / 纬度</dt><dd>{{target.lon.toFixed(6)}} / {{target.lat.toFixed(6)}}</dd></div><div><dt>速度</dt><dd>{{target.speed.toFixed(1)}} m/s</dd></div><div><dt>到选中阵地距离</dt><dd>{{assessment ? assessment.distance.toFixed(1)+' m':'待评估'}}</dd></div><div><dt>数据来源</dt><dd>{{target.source}}</dd></div><div><dt>观测时间</dt><dd>{{formatTime(target.timestamp)}}</dd></div></dl>
+          <dl><div><dt>经度 / 纬度</dt><dd>{{target.lon.toFixed(6)}} / {{target.lat.toFixed(6)}}</dd></div><div><dt>速度</dt><dd>{{target.speed.toFixed(1)}} m/s</dd></div><div><dt>到选中阵地距离</dt><dd>{{assessment ? assessment.distance.toFixed(1)+' m':'待评估'}}</dd></div><div><dt>数据来源</dt><dd>{{target.source}} · {{({simulated:"模拟数据",operational:"业务接入声明（未验证）"})[target.data_mode]||"来源待核实"}}</dd></div><div><dt>观测时间</dt><dd>{{formatTime(target.timestamp)}}</dd></div></dl>
           <div v-if="assessment?.config_pending" class="pending">配置已更新，等待此目标的下一条观测。</div>
           <div class="relation-card"><span>一架无人机 · 多个独立评估</span><button v-for="a in target.assessments" :key="a.id" class="assessment-chip" @click="choosePosition(a.position_id);inspect(a)"><b>{{a.position_name}}</b><span :style="{color:a.color}">{{a.distance.toFixed(1)}}m · {{a.level_label}}</span></button></div>
           <button class="wide-button" @click="openKnowledge('instance')">查看选中目标的 RDF 事实 ↓</button>
@@ -71,6 +71,7 @@ export default `
       <div class="ontology-footer"><span>对象属性连接对象，数据属性连接数值；距离和等级属于评估记录。</span><span>Python 计算 · RDF/OWL 表达 · SPARQL 查询</span></div>
     </section>
     <LearningWorkbench :request="request" :data="data" :mode="mode" :highlight="highlightQuery" :focus-row="focusQueryRow" />
+    <EvidenceWorkbench :request="request" :active="viewMode==='learning'" :locate="locateEvidence" :clear-point="clearEvidencePoint" />
     <footer>AirOntology<span>从观测到评估，理解业务关系。</span><span>有界历史 · 不启用自动推理</span></footer>
   </main>
   <AgentPanel :request="request" :data="data" :point="point" :mode="mode" :locate-candidate="locateAgentCandidate" />

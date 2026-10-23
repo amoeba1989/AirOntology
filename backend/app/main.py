@@ -18,6 +18,8 @@ from .views import situation_view, assessment_view, text
 from pydantic import BaseModel, Field
 from . import learning
 from . import agent
+from . import evidence
+from pydantic import ValidationError
 
 
 class TurtleInput(BaseModel):
@@ -60,10 +62,55 @@ def create_app(settings=None, store=None, enable_mqtt=True):
                 consumer.stop()
             store.close()
 
-    app = FastAPI(title='AirOntology 无人机本体工作台', version='2.2.0', lifespan=lifespan)
+    app = FastAPI(title='AirOntology 无人机本体工作台', version='2.3.0', lifespan=lifespan)
     app.state.store, app.state.consumer = store, consumer
     validation_lock = threading.Lock()
     agent_slots = threading.BoundedSemaphore(2)
+
+    @app.get('/api/evidence')
+    def evidence_view():
+        return safe(lambda:evidence.view(store))
+
+    @app.get('/api/evidence/ttl',response_class=PlainTextResponse)
+    def evidence_ttl():
+        return PlainTextResponse(safe(lambda:evidence.read_graph(store).serialize(format='turtle')),media_type='text/turtle')
+
+    @app.post('/api/evidence/validate')
+    def validate_evidence():
+        return safe(lambda:check_graph(evidence.read_graph(store),'多源证据图；校验结构约束，不证明传感器或算法性能'))
+
+    @app.post('/api/evidence/demo')
+    def evidence_demo():
+        try:
+            return evidence.seed_demo(store)
+        except evidence.EvidenceConflict as error:
+            raise HTTPException(409,str(error)) from error
+        except Exception as error:
+            logging.exception('示例写入失败')
+            raise HTTPException(503,'证据存储暂不可用，部分示例可能已写入，请先刷新') from error
+
+    @app.get('/api/evidence/examples')
+    def evidence_examples():
+        return evidence.examples()
+
+    @app.post('/api/evidence/{kind}')
+    def ingest_evidence(kind:str=PathParam(pattern='^(devices|observations|judgements|regions|authorizations)$'),body:dict=None):
+        try:
+            import json
+            if len(json.dumps(body,ensure_ascii=False).encode())>65536:
+                raise ValueError('证据记录超过64KB')
+            record=evidence.MODELS[kind].model_validate(body)
+            return evidence.save(store,kind,record)
+        except ValidationError as error:
+            details='；'.join('.'.join(map(str,e['loc']))+': '+e['msg'] for e in error.errors())
+            raise HTTPException(422,details) from error
+        except evidence.EvidenceConflict as error:
+            raise HTTPException(409,str(error)) from error
+        except ValueError as error:
+            raise HTTPException(422,str(error)) from error
+        except Exception as error:
+            logging.exception('证据写入失败')
+            raise HTTPException(503,'证据存储暂不可用') from error
 
     def safe(operation):
         try:
@@ -82,7 +129,7 @@ def create_app(settings=None, store=None, enable_mqtt=True):
             fuseki = False
         status = consumer.status()
         return {'status':'ok' if fuseki and status['connected'] and not status['last_error'] else 'degraded',
-                'fuseki':fuseki, 'mqtt':status, 'version':'2.2.0'}
+                'fuseki':fuseki, 'mqtt':status, 'version':'2.3.0'}
 
     @app.get('/api/agent/questions')
     def agent_questions():
@@ -167,6 +214,11 @@ def create_app(settings=None, store=None, enable_mqtt=True):
             with store.lock:
                 model, _ = learning_model()
                 try:
+                    if uri in evidence.TERMS:
+                        facts=store.construct(f'CONSTRUCT {{ ?s ?p ?o }} WHERE {{ GRAPH <{evidence.EVIDENCE_GRAPH}> {{ ?s ?p ?o }} }}')
+                        result=learning.term_view(model,facts,uri)
+                        result['scope']='有界多源证据图；包含来源声明、模拟观测及未确认判断，不表示已验证的无人机目标。'
+                        return result
                     if uri in agent.ANALYSIS_TERMS:
                         from .domain import SCHEMA
                         facts = store.construct(f'CONSTRUCT {{ ?s ?p ?o }} WHERE {{ VALUES ?g {{ <{SCHEMA}> <{agent.ANALYSIS_GRAPH}> }} GRAPH ?g {{ ?s ?p ?o }} }}')

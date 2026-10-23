@@ -1135,7 +1135,7 @@ td small {
 .screen header {height:64px;padding:0 16px;background:#142c43;color:#fff;border-color:#2b465e}
 .screen .brand small,.screen .header-right {color:#b9cbd9}.screen .edition {background:#28465f;color:#cdeaf8}
 .screen main {height:calc(100dvh - 64px);display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:64px 36px minmax(106px,.24fr) 42px minmax(0,1fr);gap:8px;padding:10px;min-height:0}
-.screen .page-title,.screen .analysis-grid,.screen #knowledge-panel,.screen #learning-panel,.screen main>footer {display:none}
+.screen .page-title,.screen .analysis-grid,.screen #knowledge-panel,.screen #learning-panel,.screen #evidence-panel,.screen main>footer {display:none}
 .screen .overview {grid-row:1;margin:0;padding:8px 12px}.screen .overview strong {font-size:24px}.screen .overview strong.level-metric {font-size:20px}
 .screen .knowledge-nav {grid-row:2;margin:0;gap:6px}.screen .knowledge-nav a {padding:5px 10px}
 .screen .alarm-panel {grid-row:3;margin:0;padding:8px 12px;min-height:0;overflow:auto;border-radius:7px}
@@ -1162,3 +1162,24 @@ td small {
 @media(max-width:1000px){.screen .brand small,.screen .edition,.screen .replay-help {display:none}.screen .situation-grid {grid-template-columns:minmax(0,1fr) 260px}.screen header {gap:8px}.view-switch {margin-left:0}}
 @media(max-width:700px){.screen {height:auto;min-height:100dvh;overflow:auto}.screen header {height:auto;min-height:64px;flex-wrap:wrap;padding:10px}.screen main {height:auto;display:flex;flex-direction:column;padding:8px}.screen .overview {min-height:100px}.screen .situation-grid {display:flex;flex-direction:column}.screen .map-wrap {height:380px;flex:auto}.screen .alarm-panel {max-height:185px}.screen .situation-grid .details {max-height:340px}.agent-dialog {right:8px;bottom:8px;max-width:calc(100vw - 16px)}.agent-orb {bottom:14px;right:14px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+/* V2.3 increment: evidence learning panel, existing situation screen retained. */
+.evidence-panel {margin:24px 0;padding:24px;scroll-margin-top:20px}
+.evidence-boundary {border-left:4px solid #b293ef;background:#29243a;padding:14px;color:#e0d4ff;line-height:1.7}
+.evidence-actions {display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0}
+.evidence-actions span,.evidence-panel small {font-size:12px;color:#a7b6c7}
+.evidence-panel small {display:block;margin:5px 0;overflow-wrap:anywhere}
+.evidence-panel h3 {margin-top:26px}
+.evidence-panel td {vertical-align:top;max-width:360px;overflow-wrap:anywhere}
+.evidence-panel code {font-size:12px;overflow-wrap:anywhere;white-space:normal}
+.evidence-panel details {margin:18px 0;padding:14px;border:1px solid #344459;border-radius:8px}
+.evidence-panel summary {cursor:pointer;font-weight:600}
+.evidence-panel pre {max-height:420px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#0b1420;padding:14px}
+.evidence-cards {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px}
+.evidence-card {background:#152334;border:1px solid #4f4667;border-radius:10px;padding:18px;min-width:0;overflow-wrap:anywhere}
+.evidence-card>b {color:#e0b7ff;font-size:18px}
+.evidence-card dl div {display:block;padding:7px 0}
+.evidence-card dd {margin:4px 0;white-space:normal}
+.evidence-card li {margin:7px 0;color:#d0bbdf;font-size:13px;line-height:1.6}
+.evidence-editor textarea {display:block;width:100%;box-sizing:border-box;margin:12px 0;font-family:monospace;background:#0b1420;color:#d8e5f5;border:1px solid #46546b;padding:12px}
+.evidence-editor select {margin:12px}
