@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     mqtt_port: int = 1883
     mqtt_topic: str = 'counteruav/track/blue'
     mqtt_observation_topic: str = 'counteruav/observation/raw'
+    mqtt_registry_topic: str = 'counteruav/demo/devices'
+    mqtt_telemetry_topic: str = 'counteruav/demo/telemetry'
     mqtt_client_id: str = 'airontology-consumer'
     position_id: str = 'pos001'
     position_name: str = '一号阵地'
@@ -41,6 +43,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode='after')
     def validate_config(self):
+        topics=[self.mqtt_topic,self.mqtt_observation_topic,self.mqtt_registry_topic,self.mqtt_telemetry_topic]
+        if len(set(topics))!=4:raise ValueError('四个接入主题不能相同')
         endpoint = urlsplit(self.deepseek_base_url)
         if endpoint.scheme != 'https' or not endpoint.hostname or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment:
             raise ValueError('DeepSeek地址必须是无用户名、密码或查询参数的HTTPS接口地址')

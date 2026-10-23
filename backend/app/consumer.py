@@ -4,6 +4,7 @@ import threading
 import time
 import paho.mqtt.client as mqtt
 from .domain import Track
+from . import telemetry
 from .evidence import SensorObservation, save as save_evidence
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ class Consumer:
     def on_connect(self, client, userdata, flags, reason_code, properties):
         self.connected = not reason_code.is_failure
         if self.connected:
-            client.subscribe([(self.settings.mqtt_topic,1),(self.settings.mqtt_observation_topic,1)])
+            client.subscribe([(self.settings.mqtt_topic,1),(self.settings.mqtt_observation_topic,1),(self.settings.mqtt_registry_topic,1),(self.settings.mqtt_telemetry_topic,1)])
             logger.info('MQTT连接成功并订阅 %s', self.settings.mqtt_topic)
 
     def on_disconnect(self, client, userdata, flags, reason_code, properties):
@@ -37,9 +38,13 @@ class Consumer:
 
     def on_message(self, client, userdata, message):
         try:
-            if len(message.payload) > 16384:
-                raise ValueError('报文超过16KB')
-            model = SensorObservation if getattr(message,'topic',None)==self.settings.mqtt_observation_topic else Track
+            topic=getattr(message,'topic',self.settings.mqtt_topic)
+            models={self.settings.mqtt_topic:Track,self.settings.mqtt_observation_topic:SensorObservation,
+                    self.settings.mqtt_registry_topic:telemetry.Registry,self.settings.mqtt_telemetry_topic:telemetry.Frame}
+            if topic not in models:raise ValueError('未知主题')
+            limit=262144 if topic in (self.settings.mqtt_registry_topic,self.settings.mqtt_telemetry_topic) else 16384
+            if len(message.payload)>limit:raise ValueError('报文超过接入大小限制')
+            model=models[topic]
             track = model.model_validate_json(message.payload)
             self.queue.put_nowait(track)
         except queue.Full:
@@ -57,7 +62,11 @@ class Consumer:
                 continue
             for attempt in range(3):
                 try:
-                    if isinstance(track,SensorObservation):
+                    if isinstance(track,telemetry.Registry):
+                        telemetry.register(self.store,track)
+                    elif isinstance(track,telemetry.Frame):
+                        telemetry.ingest(self.store,track)
+                    elif isinstance(track,SensorObservation):
                         save_evidence(self.store,'observations',track)
                     else:
                         self.store.write_track(track)

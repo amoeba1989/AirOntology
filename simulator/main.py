@@ -1,62 +1,42 @@
-"""可配置数量的无人机固定路线演示。停止进程即可演示观测过期。"""
-import json
-import math
+"""Publish explicit device registration and telemetry over MQTT for ontology learning."""
 import os
 import signal
 import threading
-import time
-from datetime import datetime, timezone
+from uuid import uuid4
 import paho.mqtt.client as mqtt
-from pyproj import Geod
-
-stop = threading.Event()
-connected = threading.Event()
-for sig in (signal.SIGINT, signal.SIGTERM):
-    signal.signal(sig, lambda *_: stop.set())
-client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id='airontology-simulator')
+from app.config import Settings
+from app.demo_telemetry import make_registry, make_frame
 
 
-def on_connect(client, userdata, flags, reason_code, properties):
-    if not reason_code.is_failure:
-        connected.set()
+def main():
+    settings=Settings()
+    stop=threading.Event();connected=threading.Event();needs_registration=threading.Event()
+    for sig in (signal.SIGINT,signal.SIGTERM):signal.signal(sig,lambda *_:stop.set())
+    client=mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,client_id='airontology-simulator')
+    def on_connect(client,userdata,flags,reason_code,properties):
+        if not reason_code.is_failure:needs_registration.set();connected.set()
+    def on_disconnect(client,userdata,flags,reason_code,properties):connected.clear()
+    client.on_connect=on_connect;client.on_disconnect=on_disconnect;client.reconnect_delay_set(1,10)
+    client.connect_async(settings.mqtt_host,settings.mqtt_port,30);client.loop_start()
+    count=max(1,min(100,int(os.getenv('DEMO_TARGET_COUNT','10'))))
+    interval=max(1,min(30,float(os.getenv('DEMO_INTERVAL_SECONDS','2'))))
+    registry=make_registry(settings,uuid4().hex,count)
+    tick=0
+    try:
+        while not stop.is_set():
+            if not connected.wait(1):continue
+            # Retain registration only. Frames are never retained/replayed as live data.
+            if needs_registration.is_set() or tick%15==0:
+                result=client.publish(settings.mqtt_registry_topic,registry.model_dump_json(),qos=1,retain=True)
+                result.wait_for_publish(timeout=5)
+                if not result.is_published():continue
+                needs_registration.clear()
+            frame=make_frame(settings,registry,tick,interval)
+            client.publish(settings.mqtt_telemetry_topic,frame.model_dump_json(),qos=1,retain=False)
+            print(f'模拟态势 tick={tick}：{count}架无人机、2部雷达、2部干扰器；部署关系由台账声明',flush=True)
+            tick+=1;stop.wait(interval)
+    finally:
+        client.disconnect();client.loop_stop()
 
 
-def on_disconnect(client, userdata, flags, reason_code, properties):
-    connected.clear()
-
-
-client.on_connect = on_connect
-client.on_disconnect = on_disconnect
-client.reconnect_delay_set(1, 10)
-client.connect_async(os.getenv('MQTT_HOST', 'localhost'), int(os.getenv('MQTT_PORT', '1883')), 30)
-client.loop_start()
-geod = Geod(ellps='WGS84')
-lon, lat = float(os.getenv('POSITION_LON', '116.4077')), float(os.getenv('POSITION_LAT', '39.9045'))
-target_count = max(1, min(100, int(os.getenv('DEMO_TARGET_COUNT', '10'))))
-interval = max(1, min(30, float(os.getenv('DEMO_INTERVAL_SECONDS', '2'))))
-routes = [(65, 0), (110, 2.1), (290, 4.2)]
-routes += [((37 * i + 25) % 360, i * .63) for i in range(3, target_count)]
-step, previous = 0, {}
-try:
-    while not stop.is_set():
-        if not connected.wait(1):
-            continue
-        now = time.monotonic()
-        for index, (bearing, phase) in enumerate(routes[:target_count], start=1):
-            target_id = f'drone{index:03d}'
-            distance = 260 + 240 * math.cos(step * math.pi / 36 + phase)
-            target_lon, target_lat, _ = geod.fwd(lon, lat, bearing, distance)
-            old = previous.get(target_id)
-            speed = 0 if old is None else geod.inv(old[0], old[1], target_lon, target_lat)[2]/max(.001, now-old[2])
-            payload = json.dumps({'target_id': target_id, 'name':f'无人机{index:03d}',
-                'source':'固定航线模拟器', 'data_mode':'simulated', 'lon':target_lon, 'lat':target_lat, 'speed':speed,
-                'timestamp':datetime.now(timezone.utc).isoformat()})
-            result = client.publish(os.getenv('MQTT_TOPIC', 'counteruav/track/blue'), payload, qos=1, retain=False)
-            if result.rc == mqtt.MQTT_ERR_SUCCESS:
-                previous[target_id] = (target_lon, target_lat, now)
-        print(f'已发布{target_count}架无人机观测，演示步数 {step}', flush=True)
-        step += 1
-        stop.wait(interval)
-finally:
-    client.disconnect()
-    client.loop_stop()
+if __name__=='__main__':main()

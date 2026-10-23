@@ -14,12 +14,31 @@ import { mergeTrail, trailSegments } from "./map-utils.js";
 import LearningWorkbench from "./learning.js";
 import AgentPanel from "./agent-panel.js";
 import EvidenceWorkbench from "./evidence.js";
+import DeviceWorkbench from "./devices.js";
 const droneSvg = `<svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="7" cy="7" r="4"/><circle cx="25" cy="7" r="4"/><circle cx="7" cy="25" r="4"/><circle cx="25" cy="25" r="4"/><path d="M10 10l12 12M22 10L10 22"/><rect x="12" y="11" width="8" height="10" rx="3" fill="currentColor"/></g></svg>`;
 const positionSvg = `<svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round"><path d="M5 27h22M8 27V15l8-6 8 6v12M13 27v-7h6v7M16 9V3h9l-3 3 3 3h-9"/></g></svg>`;
 
 createApp({
-  components: { LearningWorkbench, AgentPanel, EvidenceWorkbench },
+  components: { LearningWorkbench, AgentPanel, EvidenceWorkbench, DeviceWorkbench },
   setup() {
+    const deviceData=ref(null),deviceError=ref(''),selectedDeviceId=ref('');
+    let devicePolling=false,deviceTimer;
+    async function pollDevices(){
+      if(devicePolling||closed)return;devicePolling=true;
+      try{const value=await request('/api/devices');if(!closed){deviceData.value=value;deviceError.value='';draw();}}
+      catch(e){deviceError.value=e.message;}finally{devicePolling=false;}
+    }
+    async function openDevices(id){
+      if(typeof id==='string')selectedDeviceId.value=id;
+      await changeView('learning');
+      document.getElementById('devices-panel')?.scrollIntoView?.({block:'start'});
+    }
+    async function locateDevice(d){
+      if(mode.value!=='live')await live();
+      if(!d.state?.transform)return;
+      map.setView([d.state.transform.latitude_deg,d.state.transform.longitude_deg],17,{animate:false});
+      document.getElementById('map')?.scrollIntoView?.({block:'center'});
+    }
     const data = ref(null),
       health = ref(null),
       selected = ref("drone001"),
@@ -238,6 +257,15 @@ createApp({
           className: "map-label",
         });
         marker.on("click", () => choosePosition(p.id));
+      }
+      if(mode.value==='live') for(const d of deviceData.value?.devices||[]){
+        if(d.kind==='uav'||!d.state?.transform)continue;
+        const p=d.state.transform;
+        const icon=d.kind==='radar'?'<svg viewBox="0 0 32 32"><path d="M7 6a14 14 0 0 0 19 19L7 6M9 23l-4 6h22M16 16l9-11"/></svg>':'<svg viewBox="0 0 32 32"><path d="M19 3L7 18h9l-3 11 13-17h-9z"/></svg>';
+        const stale=d.stale||!d.in_latest_frame||!!deviceError.value;
+        const marker=L.marker([p.latitude_deg,p.longitude_deg],{opacity:stale ? 0.5 : 1,icon:L.divIcon({className:'',html:'<div class="equipment-icon '+d.kind+'">'+icon+'</div>',iconSize:[32,32],iconAnchor:[16,16]})}).addTo(layers);
+        marker.bindTooltip(tooltip(d.kind_label+' · '+d.name+' · 模拟数据 · '+d.status_label),{direction:'top'});
+        marker.on('click',()=>openDevices(d.id));
       }
       const thresholds = assessment.value?.thresholds || data.value.thresholds;
       if (point.value && showRanges.value)
@@ -609,17 +637,21 @@ createApp({
         error.value = e.message;
       }
       await poll();
+      await pollDevices();
+      deviceTimer=setInterval(pollDevices,2000);
       timer = setInterval(poll, 1000);
     });
     onUnmounted(() => {
       closed = true;
       snapshotToken++;
       clearInterval(timer);
+      clearInterval(deviceTimer);
       stopPlayback();
       map?.remove();
     });
     return {
       viewMode,
+      deviceData,deviceError,selectedDeviceId,openDevices,locateDevice,
       changeView,
       locateAgentCandidate,
       openLearning,

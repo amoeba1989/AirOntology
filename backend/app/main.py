@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from . import learning
 from . import agent
 from . import evidence
+from . import telemetry
 from pydantic import ValidationError
 
 
@@ -62,10 +63,28 @@ def create_app(settings=None, store=None, enable_mqtt=True):
                 consumer.stop()
             store.close()
 
-    app = FastAPI(title='AirOntology 无人机本体工作台', version='2.3.0', lifespan=lifespan)
+    app = FastAPI(title='AirOntology 无人机本体工作台', version='2.4.0', lifespan=lifespan)
     app.state.store, app.state.consumer = store, consumer
     validation_lock = threading.Lock()
     agent_slots = threading.BoundedSemaphore(2)
+
+    @app.get('/api/devices')
+    def devices():
+        return safe(lambda:telemetry.view(store))
+
+    @app.get('/api/devices/ttl',response_class=PlainTextResponse)
+    def devices_ttl():
+        return PlainTextResponse(safe(lambda:telemetry.facts(store).serialize(format='turtle')),media_type='text/turtle')
+
+    @app.get('/api/devices/deployments')
+    def device_deployments(position_id:str|None=Query(default=None,pattern=ID_PATTERN)):
+        query=telemetry.deployment_query(position_id)
+        result=safe(lambda:store.query(query))
+        return {'sparql':query,'variables':result['head']['vars'],'rows':result['results']['bindings']}
+
+    @app.post('/api/devices/validate')
+    def devices_validate():
+        return safe(lambda:check_graph(telemetry.facts(store),'模拟设备、部署关系与最新状态；仅校验结构'))
 
     @app.get('/api/evidence')
     def evidence_view():
@@ -129,7 +148,7 @@ def create_app(settings=None, store=None, enable_mqtt=True):
             fuseki = False
         status = consumer.status()
         return {'status':'ok' if fuseki and status['connected'] and not status['last_error'] else 'degraded',
-                'fuseki':fuseki, 'mqtt':status, 'version':'2.3.0'}
+                'fuseki':fuseki, 'mqtt':status, 'version':'2.4.0'}
 
     @app.get('/api/agent/questions')
     def agent_questions():
@@ -214,6 +233,13 @@ def create_app(settings=None, store=None, enable_mqtt=True):
             with store.lock:
                 model, _ = learning_model()
                 try:
+                    if uri in telemetry.TERMS or uri==str(CU.RadarSensor):
+                        facts=telemetry.facts(store)
+                        if uri in {str(CU.lat),str(CU.lon),str(CU.UAV)}:facts+=learning.current_graph(store,settings.ontology_dir)
+                        if uri==str(CU.RadarSensor):facts+=evidence.read_graph(store)
+                        result=learning.term_view(model,facts,uri)
+                        result['scope']='模拟设备显式台账与有界最新状态；部署关系不是按距离推断。'
+                        return result
                     if uri in evidence.TERMS:
                         facts=store.construct(f'CONSTRUCT {{ ?s ?p ?o }} WHERE {{ GRAPH <{evidence.EVIDENCE_GRAPH}> {{ ?s ?p ?o }} }}')
                         result=learning.term_view(model,facts,uri)

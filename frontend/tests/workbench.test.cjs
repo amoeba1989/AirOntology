@@ -132,9 +132,16 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
   const evidenceCalls=[];
   const evidenceData={devices:[{id:'radar',name:'模拟雷达',sensor_kind:'radar',data_mode:'simulated',reported_status:'normal',effective_status:'normal',effective_coverage:'unknown',status_fresh:true,reported_at:at,source:'模拟器',observation_note:'已有观测；身份未知'}],observations:[{id:'raw-positive',device_name:'模拟雷达',data_mode:'simulated',outcome:'detected',quality:'usable',fresh:true,usable_positive:true,mode_consistent:true,crs:'WGS84',lon:116.408,lat:39.9045,raw_evidence_ref:'urn:demo:positive',observed_at:at,received_at:at},{id:'raw-negative',device_name:'模拟红外',data_mode:'simulated',outcome:'not_detected',quality:'usable',fresh:true,usable_positive:false,mode_consistent:true,crs:'WGS84',lon:116.408,lat:39.9045,raw_evidence_ref:'urn:demo:negative',observed_at:at,received_at:at}],judgements:[{id:'j1',layer:'association',layer_label:'观测关联',current_status:'suspected',current_label:'疑似',status:'suspected',target_ref:'hypothesis',data_mode:'simulated',observation_ids:['raw-positive'],judgement_ids:[],method_name:'手工演示',method_version:'v1',source:'operator',conditions:'占位记录',uncertainty:'未验证',independence_note:'未知',gaps:['未实现融合算法']},{id:'j2',layer:'intrusion',layer_label:'异常闯入条件',current_status:'pending',current_label:'待核实',status:'pending',target_ref:'hypothesis',data_mode:'simulated',observation_ids:['raw-positive'],judgement_ids:[],region_id:'region1',authorization_status:'unknown',conditions:'待验证',uncertainty:'未知',gaps:['授权未知不能判为未授权']}],regions:[],authorizations:[]};
 
+  const deviceData={positions,frame:{payload:{tick:6,sim_time_s:12}},topic:'counteruav/demo/telemetry',devices:[
+    {id:'radar001',name:'雷达001',kind:'radar',kind_label:'雷达',deployed_at:'pos001',position:positions[0],parameters:{enabled:true},status_label:'当前帧已上报',in_latest_frame:true,stale:false,state_tick:'6',state:{transform:{longitude_deg:116.407,latitude_deg:39.904},faction:{side:1}}},
+    {id:'jammer001',name:'干扰器001',kind:'jammer',kind_label:'干扰器',deployed_at:'pos001',position:positions[0],parameters:{enabled:true},status_label:'当前帧已上报',in_latest_frame:true,stale:false,state_tick:'6',state:{transform:{longitude_deg:116.406,latitude_deg:39.904},jammer:{enabled:true,emitting:false}}}
+  ]};
   win.fetch = async (url, opts = {}) => {
     let json;
-    if (url === '/api/evidence') json=evidenceLoaded?evidenceData:{devices:[],observations:[],judgements:[],regions:[],authorizations:[]};
+    if (url === '/api/devices') json=deviceData;
+    else if(url.startsWith('/api/devices/deployments'))json={sparql:'SELECT ?device WHERE { ?device cu:deployedAt ?position }',rows:[{name:{value:'雷达001'},positionName:{value:'一号阵地'}}]};
+    else if(url === '/api/devices/validate')json={conforms:true,focus_count:6,results:[]};
+    else if (url === '/api/evidence') json=evidenceLoaded?evidenceData:{devices:[],observations:[],judgements:[],regions:[],authorizations:[]};
     else if(url === '/api/evidence/demo'){evidenceLoaded=true;json={status:'saved'};}
     else if(url === '/api/evidence/examples')json={devices:{id:'sample-radar',data_mode:'simulated'}};
     else if(url === '/api/evidence/devices'){evidenceCalls.push(opts);json={status:'saved'};}
@@ -322,6 +329,24 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     await until(()=>evidenceCalls.length===1);
     assert.equal(evidenceCalls[0].headers['Content-Type'],'application/json');
     assert.equal(JSON.parse(evidenceCalls[0].body).data_mode,'simulated');
+    await until(()=>doc.querySelectorAll('.equipment-icon').length===2);
+    button('设备与阵地关系').click();
+    await until(()=>doc.querySelector('.device-detail')?.textContent.includes('雷达001'));
+    assert.ok(doc.querySelector('.device-detail').textContent.includes('未提供。初始配置不能证明当前工作正常'));
+    const deviceFilter=doc.querySelector('[aria-label="筛选设备类型"]');
+    deviceFilter.value='jammer';deviceFilter.dispatchEvent(new win.Event('change',{bubbles:true}));
+    await until(()=>doc.querySelector('.device-detail')?.textContent.includes('干扰器001'));
+    assert.ok(doc.querySelector('.device-detail').textContent.includes('是 / 否'));
+    button('本体字段映射').click();
+    await until(()=>doc.querySelector('.device-detail').textContent.includes('cu:Jammer'));
+    button('来源 MQTT JSON').click();
+    await until(()=>doc.querySelector('.device-detail pre')?.textContent.includes('"emitting": false'));
+    button('执行部署关系 SPARQL').click();
+    await until(()=>doc.querySelector('.device-query').textContent.includes('查询到 1 条'));
+    button('校验设备与关系').click();
+    await until(()=>doc.querySelector('.device-validation')?.textContent.includes('结构通过'));
+    doc.querySelector('.equipment-icon.radar').click();
+    await until(()=>doc.querySelector('.device-detail')?.textContent.includes('雷达001'));
     assert.deepEqual(errors, []);
   } finally {
     dom.window.close();

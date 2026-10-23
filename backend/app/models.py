@@ -64,3 +64,5 @@ class ConfigChange(BaseModel):
     config: RuntimeConfig
 
 RESERVED.update({'deviceStateAtReceipt','validForSeconds'})
+
+RESERVED.update({'altitudeMeters', 'yawDegrees', 'rollDegrees', 'emissionBandwidthHz', 'gnssLocked', 'presentBlockMask', 'rcLinked', 'boresightYaw', 'QuadrotorUAV', 'airSpeed', 'sourceRunId', 'factionCode', 'beamHalfAngle', 'configurationJson', 'deviceKind', 'publishedAt', 'boresightPitch', 'motionMode', 'configurationSource', 'sidelobeGain', 'pitchDegrees', 'reportedDestroyed', 'telemetryLinked', 'maxHitPoints', 'groundSpeed', 'latestDeviceState', 'sourceHandle', 'deployedAt', 'UAV', 'gnssRatioDb', 'emitterEmitting', 'sourceTick', 'emitterEnabled', 'emissionFrequencyHz', 'Jammer', 'hitPoints', 'simulationTimeSeconds', 'DeviceState', 'stateOfDevice', 'reportedEirpDbm', 'rcRatioDb', 'emissionStyle'})

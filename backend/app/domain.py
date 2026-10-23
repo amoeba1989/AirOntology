@@ -88,6 +88,7 @@ def observation_graphs(track, config):
     state, history = graph(), graph()
     name = track.name or f'无人机{track.target_id.removeprefix("drone")}'
     state.add((target, RDF.type, CU.BlueDevice))
+    state.add((target, RDF.type, CU.UAV))
     state.add((target, CU.latestObservation, observation))
     values = [('name', name, XSD.string), ('lon', track.lon, XSD.double),
               ('lat', track.lat, XSD.double), ('speed', track.speed, XSD.double),

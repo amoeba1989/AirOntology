@@ -3,7 +3,7 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-cu: a owl:Ontology ; rdfs:label "无人机观测与评估本体"@zh ; owl:versionInfo "2.3.0" ;
+cu: a owl:Ontology ; rdfs:label "无人机观测与评估本体"@zh ; owl:versionInfo "2.4.0" ;
  rdfs:comment "Python计算距离和等级；RDF关联目标、观测、阵地与规则。未启用自动推理。"@zh .
 
 cu:BlueDevice a owl:Class ; rdfs:label "无人机目标"@zh ; rdfs:comment "持续存在的目标对象，不直接保存多个阵地的距离。"@zh .
@@ -118,3 +118,177 @@ cu:generatedAt a owl:DatatypeProperty ; rdfs:label "判断来源生成时间"@zh
 
 cu:deviceStateAtReceipt a owl:DatatypeProperty ; rdfs:label "接收观测时的设备状态快照"@zh ; rdfs:range xsd:string .
 cu:validForSeconds a owl:DatatypeProperty ; rdfs:label "声明有效时长（秒）"@zh ; rdfs:range xsd:integer .
+
+# V2.4 四类对象与明确登记的部署关系
+@prefix cu: <http://counteruav.org/counterUav#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+cu:BlueDevice rdfs:subClassOf cu:UAV .
+
+cu:Jammer a owl:Class ;
+    rdfs:label "干扰器"@zh .
+
+cu:QuadrotorUAV a owl:Class ;
+    rdfs:label "四旋翼无人机"@zh ;
+    rdfs:subClassOf cu:UAV .
+
+cu:airSpeed a owl:DatatypeProperty ;
+    rdfs:label "空速（米/秒）"@zh ;
+    rdfs:range xsd:double .
+
+cu:altitudeMeters a owl:DatatypeProperty ;
+    rdfs:label "源声明绝对海拔（米，垂直基准未确认）"@zh ;
+    rdfs:range xsd:double .
+
+cu:beamHalfAngle a owl:DatatypeProperty ;
+    rdfs:label "波束半锥角（度）"@zh ;
+    rdfs:range xsd:double .
+
+cu:boresightPitch a owl:DatatypeProperty ;
+    rdfs:label "波束俯仰（度）"@zh ;
+    rdfs:range xsd:double .
+
+cu:boresightYaw a owl:DatatypeProperty ;
+    rdfs:label "波束方位（度）"@zh ;
+    rdfs:range xsd:double .
+
+cu:configurationJson a owl:DatatypeProperty ;
+    rdfs:label "登记的初始配置JSON"@zh ;
+    rdfs:range xsd:string .
+
+cu:configurationSource a owl:DatatypeProperty ;
+    rdfs:label "配置与部署关系来源"@zh ;
+    rdfs:range xsd:string .
+
+cu:deployedAt a owl:ObjectProperty ;
+    rdfs:label "部署于阵地"@zh ;
+    rdfs:range cu:Position .
+
+cu:deviceKind a owl:DatatypeProperty ;
+    rdfs:label "登记设备类型"@zh ;
+    rdfs:range xsd:string .
+
+cu:emissionBandwidthHz a owl:DatatypeProperty ;
+    rdfs:label "发射带宽（Hz）"@zh ;
+    rdfs:range xsd:double .
+
+cu:emissionFrequencyHz a owl:DatatypeProperty ;
+    rdfs:label "发射中心频率（Hz）"@zh ;
+    rdfs:range xsd:double .
+
+cu:emissionStyle a owl:DatatypeProperty ;
+    rdfs:label "发射样式代码"@zh ;
+    rdfs:range xsd:integer .
+
+cu:emitterEmitting a owl:DatatypeProperty ;
+    rdfs:label "本帧实际发射"@zh ;
+    rdfs:range xsd:boolean .
+
+cu:emitterEnabled a owl:DatatypeProperty ;
+    rdfs:label "发射设备总开关"@zh ;
+    rdfs:range xsd:boolean .
+
+cu:factionCode a owl:DatatypeProperty ;
+    rdfs:label "仿真阵营代码"@zh ;
+    rdfs:range xsd:integer .
+
+cu:gnssLocked a owl:DatatypeProperty ;
+    rdfs:label "导航锁定"@zh ;
+    rdfs:range xsd:boolean .
+
+cu:gnssRatioDb a owl:DatatypeProperty ;
+    rdfs:label "原始导航比值（dB，公式待确认）"@zh ;
+    rdfs:range xsd:double .
+
+cu:groundSpeed a owl:DatatypeProperty ;
+    rdfs:label "实时地速（米/秒）"@zh ;
+    rdfs:range xsd:double .
+
+cu:hitPoints a owl:DatatypeProperty ;
+    rdfs:label "仿真生命值"@zh ;
+    rdfs:range xsd:double .
+
+cu:latestDeviceState a owl:ObjectProperty ;
+    rdfs:label "最新设备状态"@zh ;
+    rdfs:range cu:DeviceState .
+
+cu:maxHitPoints a owl:DatatypeProperty ;
+    rdfs:label "仿真最大生命值"@zh ;
+    rdfs:range xsd:double .
+
+cu:motionMode a owl:DatatypeProperty ;
+    rdfs:label "运动模式代码"@zh ;
+    rdfs:range xsd:integer .
+
+cu:pitchDegrees a owl:DatatypeProperty ;
+    rdfs:label "俯仰角（度）"@zh ;
+    rdfs:range xsd:double .
+
+cu:presentBlockMask a owl:DatatypeProperty ;
+    rdfs:label "本帧状态块位掩码"@zh ;
+    rdfs:range xsd:integer .
+
+cu:publishedAt a owl:DatatypeProperty ;
+    rdfs:label "源UTC发布时间"@zh ;
+    rdfs:range xsd:dateTime .
+
+cu:rcLinked a owl:DatatypeProperty ;
+    rdfs:label "遥控链路连通"@zh ;
+    rdfs:range xsd:boolean .
+
+cu:rcRatioDb a owl:DatatypeProperty ;
+    rdfs:label "原始遥控比值（dB，公式待确认）"@zh ;
+    rdfs:range xsd:double .
+
+cu:reportedDestroyed a owl:DatatypeProperty ;
+    rdfs:label "上报已摧毁状态"@zh ;
+    rdfs:range xsd:boolean .
+
+cu:reportedEirpDbm a owl:DatatypeProperty ;
+    rdfs:label "上报等效全向辐射功率（dBm）"@zh ;
+    rdfs:range xsd:double .
+
+cu:rollDegrees a owl:DatatypeProperty ;
+    rdfs:label "滚转角（度）"@zh ;
+    rdfs:range xsd:double .
+
+cu:sidelobeGain a owl:DatatypeProperty ;
+    rdfs:label "旁瓣增益（dBi）"@zh ;
+    rdfs:range xsd:double .
+
+cu:simulationTimeSeconds a owl:DatatypeProperty ;
+    rdfs:label "仿真时间（秒）"@zh ;
+    rdfs:range xsd:double .
+
+cu:sourceHandle a owl:DatatypeProperty ;
+    rdfs:label "源实体句柄"@zh ;
+    rdfs:range xsd:integer .
+
+cu:sourceRunId a owl:DatatypeProperty ;
+    rdfs:label "接入运行标识"@zh ;
+    rdfs:range xsd:string .
+
+cu:sourceTick a owl:DatatypeProperty ;
+    rdfs:label "源帧号"@zh ;
+    rdfs:range xsd:integer .
+
+cu:stateOfDevice a owl:ObjectProperty ;
+    rdfs:label "状态描述设备"@zh ;
+    rdfs:domain cu:DeviceState .
+
+cu:telemetryLinked a owl:DatatypeProperty ;
+    rdfs:label "遥测链路连通"@zh ;
+    rdfs:range xsd:boolean .
+
+cu:yawDegrees a owl:DatatypeProperty ;
+    rdfs:label "航向角（度）"@zh ;
+    rdfs:range xsd:double .
+
+cu:DeviceState a owl:Class ;
+    rdfs:label "设备上报状态记录"@zh .
+
+cu:UAV a owl:Class ;
+    rdfs:label "无人机"@zh .
+

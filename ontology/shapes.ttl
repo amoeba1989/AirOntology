@@ -344,3 +344,17 @@ cu:SensorObservationEvidenceShape a sh:NodeShape ;
             sh:path cu:fromDevice ] ;
     sh:targetClass cu:SensorObservation .
 
+
+# V2.4：登记设备与最新状态；不校验探测/干扰因果。
+cu:DeviceRegistryShape a sh:NodeShape ; sh:targetSubjectsOf cu:deviceKind ;
+ sh:property [ sh:path cu:deviceKind ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("uav"^^xsd:string "radar"^^xsd:string "jammer"^^xsd:string) ; sh:message "设备类型必须是无人机、雷达或干扰器"@zh ] ;
+ sh:property [ sh:path cu:deployedAt ; sh:maxCount 1 ; sh:class cu:Position ; sh:message "部署关系必须指向已登记的阵地"@zh ] ;
+ sh:property [ sh:path cu:configurationSource ; sh:minCount 1 ; sh:datatype xsd:string ; sh:message "配置来源不能为空"@zh ] .
+cu:DeviceStateShape a sh:NodeShape ; sh:targetClass cu:DeviceState ;
+ sh:property [ sh:path cu:stateOfDevice ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ; sh:message "状态必须指向一个设备"@zh ] ;
+ sh:property [ sh:path cu:sourceTick ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ; sh:message "帧号必须是非负整数"@zh ] ;
+ sh:property [ sh:path cu:publishedAt ; sh:minCount 1 ; sh:datatype xsd:dateTime ; sh:message "保留UTC发布时间"@zh ] ;
+ sh:property [ sh:path cu:simulationTimeSeconds ; sh:minCount 1 ; sh:datatype xsd:double ; sh:minInclusive 0 ; sh:message "仿真时间不能代替UTC时间"@zh ] ;
+ sh:property [ sh:path cu:receivedAt ; sh:minCount 1 ; sh:datatype xsd:dateTime ; sh:message "保留服务端接收时间"@zh ] ;
+ sh:property [ sh:path cu:rcLinked ; sh:maxCount 1 ; sh:datatype xsd:boolean ; sh:message "遥控链路字段必须为布尔值，缺失不补false"@zh ] ;
+ sh:property [ sh:path cu:emitterEmitting ; sh:maxCount 1 ; sh:datatype xsd:boolean ; sh:message "实际发射字段必须为布尔值"@zh ] .

@@ -1135,7 +1135,7 @@ td small {
 .screen header {height:64px;padding:0 16px;background:#142c43;color:#fff;border-color:#2b465e}
 .screen .brand small,.screen .header-right {color:#b9cbd9}.screen .edition {background:#28465f;color:#cdeaf8}
 .screen main {height:calc(100dvh - 64px);display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:64px 36px minmax(106px,.24fr) 42px minmax(0,1fr);gap:8px;padding:10px;min-height:0}
-.screen .page-title,.screen .analysis-grid,.screen #knowledge-panel,.screen #learning-panel,.screen #evidence-panel,.screen main>footer {display:none}
+.screen .page-title,.screen .analysis-grid,.screen #knowledge-panel,.screen #learning-panel,.screen #evidence-panel,.screen #devices-panel,.screen main>footer {display:none}
 .screen .overview {grid-row:1;margin:0;padding:8px 12px}.screen .overview strong {font-size:24px}.screen .overview strong.level-metric {font-size:20px}
 .screen .knowledge-nav {grid-row:2;margin:0;gap:6px}.screen .knowledge-nav a {padding:5px 10px}
 .screen .alarm-panel {grid-row:3;margin:0;padding:8px 12px;min-height:0;overflow:auto;border-radius:7px}
@@ -1183,3 +1183,16 @@ td small {
 .evidence-card li {margin:7px 0;color:#d0bbdf;font-size:13px;line-height:1.6}
 .evidence-editor textarea {display:block;width:100%;box-sizing:border-box;margin:12px 0;font-family:monospace;background:#0b1420;color:#d8e5f5;border:1px solid #46546b;padding:12px}
 .evidence-editor select {margin:12px}
+
+/* Four business objects: radar / jammer are distinct from UAV and position. */
+.equipment-icon {width:32px;height:32px;border:2px solid #fff;box-shadow:0 1px 6px #0008;display:flex;align-items:center;justify-content:center;background:#087f8c;color:white;border-radius:6px}
+.equipment-icon svg {width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.equipment-icon.jammer {background:#8547b5;transform:rotate(45deg);border-radius:3px}
+.equipment-icon.jammer svg {transform:rotate(-45deg)}
+.devices-panel {padding:24px;margin:24px 0;scroll-margin-top:16px}
+.devices-panel>p {line-height:1.7;color:#596c7d}.devices-toolbar {display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:16px 0}
+.devices-sites {display:flex;flex-wrap:wrap;gap:12px}.devices-sites article {flex:1;min-width:220px;padding:14px;border:1px solid #cbd9e2;border-radius:8px;background:#f5f9fc}
+.devices-sites code,.devices-sites span {display:block;margin-top:8px}.devices-layout {display:grid;grid-template-columns:230px minmax(0,1fr);gap:20px}
+.device-list {max-height:540px;overflow:auto;display:flex;flex-direction:column;gap:8px}.device-choice {display:flex;flex-direction:column;gap:7px;text-align:left;padding:14px;border-left:4px solid #4980aa;background:#f7fafc}.device-choice.radar {border-left-color:#087f8c}.device-choice.jammer {border-left-color:#8547b5}.device-choice.active {background:#e6eff9;outline:1px solid #6489b4}
+.device-choice small {font-size:11px}.device-detail {min-width:0;padding:18px;border:1px solid #cbd9e2;border-radius:8px}.device-detail code {overflow-wrap:anywhere;font-size:12px}.device-detail dl div {padding:8px 0}.device-detail dd {overflow-wrap:anywhere;white-space:normal}.devices-panel pre {max-height:400px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#152b3d;color:#dbeaf7;padding:14px;border-radius:6px;font-size:12px}.device-query {margin:24px 0}.device-query select {margin:0 12px}.devices-panel details {margin-top:16px}.device-validation {padding:16px;background:#e9f5ed}.devices-panel table {width:100%;font-size:13px}
+@media(max-width:700px){.devices-layout {grid-template-columns:1fr}.device-list {max-height:230px}.devices-panel {padding:14px}.devices-panel td {overflow-wrap:anywhere}}

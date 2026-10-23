@@ -4,6 +4,8 @@ x-app-env:
   MQTT_HOST: mqtt
   MQTT_PORT: 1883
   MQTT_TOPIC: counteruav/track/blue
+  MQTT_REGISTRY_TOPIC: ${MQTT_REGISTRY_TOPIC:-counteruav/demo/devices}
+  MQTT_TELEMETRY_TOPIC: ${MQTT_TELEMETRY_TOPIC:-counteruav/demo/telemetry}
   MQTT_OBSERVATION_TOPIC: ${MQTT_OBSERVATION_TOPIC:-counteruav/observation/raw}
   POSITION_ID: ${POSITION_ID:-pos001}
   POSITION_NAME: ${POSITION_NAME:-一号阵地}
@@ -54,6 +56,8 @@ services:
       MQTT_HOST: mqtt
       MQTT_PORT: 1883
       MQTT_TOPIC: counteruav/track/blue
+      MQTT_REGISTRY_TOPIC: ${MQTT_REGISTRY_TOPIC:-counteruav/demo/devices}
+      MQTT_TELEMETRY_TOPIC: ${MQTT_TELEMETRY_TOPIC:-counteruav/demo/telemetry}
       MQTT_OBSERVATION_TOPIC: ${MQTT_OBSERVATION_TOPIC:-counteruav/observation/raw}
       POSITION_ID: ${POSITION_ID:-pos001}
       POSITION_NAME: ${POSITION_NAME:-一号阵地}
@@ -100,6 +104,8 @@ services:
       MQTT_HOST: mqtt
       MQTT_PORT: 1883
       MQTT_TOPIC: counteruav/track/blue
+      MQTT_REGISTRY_TOPIC: ${MQTT_REGISTRY_TOPIC:-counteruav/demo/devices}
+      MQTT_TELEMETRY_TOPIC: ${MQTT_TELEMETRY_TOPIC:-counteruav/demo/telemetry}
       POSITION_ID: ${POSITION_ID:-pos001}
       POSITION_NAME: ${POSITION_NAME:-一号阵地}
       POSITION_LON: ${POSITION_LON:-116.4077}

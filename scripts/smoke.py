@@ -84,3 +84,16 @@ if not agent_questions['llm_configured']:
     assert 'event: snapshot' in stream and 'event: candidate' in stream and 'event: done' in stream
     assert 'attention-policy-v1' in stream and '未配置 DeepSeek' in stream
 print('通过：多目标独立评估、MQTT、回放、本体词典、Fuseki查询、SHACL校验、策略排序与流式卡片')
+
+# Real MQTT simulator → consumer → Fuseki → API path, not direct HTTP fixture writes.
+devices=json.loads(get('/api/devices'))
+assert len(devices['devices'])>=7
+assert {d['kind'] for d in devices['devices']}=={'uav','radar','jammer'}
+assert devices['frame']['payload']['tick']>=0
+assert all(d['state'] and d['in_latest_frame'] for d in devices['devices'])
+assert len(json.loads(get('/api/devices/deployments'))['rows'])==4
+assert 'deployedAt' in get('/api/devices/ttl')
+validation=post('/api/devices/validate')
+assert validation['conforms'],validation
+assert all('jammer' not in d['state'] for d in devices['devices'] if d['kind']=='radar')
+print('通过：MQTT设备登记、四类对象、态势适配、显式部署关系、设备SHACL校验')

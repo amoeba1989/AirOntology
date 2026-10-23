@@ -2,7 +2,7 @@ export default `
 <div class="workspace" :class="{screen:viewMode==='screen'}">
   <header>
     <div class="brand-mark">A<span>O</span></div><div class="brand">AirOntology<small>无人机本体 · 观测与评估工作台</small></div>
-    <span class="edition">DEMO / V2.2</span>
+    <span class="edition">DEMO / V2.4</span>
     <nav class="view-switch" aria-label="工作台视图"><button :class="{active:viewMode==='screen'}" @click="changeView('screen')">态势大屏</button><button :class="{active:viewMode==='learning'}" @click="changeView('learning')">本体学习</button></nav>
     <div class="header-right"><span class="status-dot" :class="{online:mode==='live'&&health?.mqtt.connected}"></span>{{status}}<span class="divider"></span><button @click="openConfig" :disabled="mode!=='live'">阵地与规则配置</button></div>
   </header>
@@ -16,7 +16,7 @@ export default `
       <div><span class="metric-label">选中目标 / 选中阵地</span><strong class="level-metric" :style="{color:assessment?.color}">{{assessment?.level_label || '待评估'}}</strong></div>
       <div class="dependency"><span :class="{connected:health?.mqtt.connected}">● MQTT {{health?.mqtt.connected?'已连接':'未连接'}}</span><span :class="{connected:health?.fuseki}">● Fuseki {{health?.fuseki?'可用':'未连接'}}</span></div>
     </div>
-    <nav class="knowledge-nav" aria-label="本体导航"><a href="#alarm-panel">告警看板</a><button @click="openLearning">本体学习工作台</button><button @click="openEvidence">多源观测与证据</button><button @click="openKnowledge('structure')">TBox · 类与属性定义</button><button @click="openKnowledge('abox')">ABox · 实例与关系</button></nav>
+    <nav class="knowledge-nav" aria-label="本体导航"><a href="#alarm-panel">告警看板</a><button @click="openLearning">本体学习工作台</button><button @click="openDevices()">设备与阵地关系</button><button @click="openEvidence">多源观测与证据</button><button @click="openKnowledge('structure')">TBox · 类与属性定义</button><button @click="openKnowledge('abox')">ABox · 实例与关系</button></nav>
     <section id="alarm-panel" class="alarm-panel" :class="{urgent:alarmEntries.some(a=>a.level==='HighAttention')}" aria-labelledby="alarm-title">
       <div class="alarm-heading"><h2 id="alarm-title">{{mode==='live'?'实时距离告警':'历史快照 · 距离告警'}}</h2><strong>{{alarmEntries.length}} 条关注 · {{staleTargets.length}} 架数据过期</strong><span>{{formatTime(data?.at)}}</span></div>
       <p class="alarm-help">覆盖所有阵地，同一无人机可关联多条告警；仅按距离分级，不代表黑飞或综合威胁。{{mode==='live'?'随实时态势刷新。':'当前显示历史数据。'}}</p>
@@ -36,7 +36,7 @@ export default `
     <section class="situation-grid">
       <div class="panel map-panel">
         <div class="panel-heading"><h2><span class="section-index">01</span>{{mode==='replay'?'历史态势':'实时态势'}}</h2><div><label class="follow"><input type="checkbox" v-model="follow">跟随目标</label><button @click="locate">定位全景 ↗</button></div></div>
-        <div class="map-controls"><label><input type="checkbox" v-model="showTrails" @change="draw">无人机轨迹</label><label><input type="checkbox" v-model="showRanges" @change="draw">距离分级圈</label><span>圆形：无人机 · 方形旗标：阵地</span></div>
+        <div class="map-controls"><label><input type="checkbox" v-model="showTrails" @change="draw">无人机轨迹</label><label><input type="checkbox" v-model="showRanges" @change="draw">距离分级圈</label><button @click="openDevices()">设备与关系</button><span>圆形：无人机 · 旗标：阵地 · 雷达标：雷达 · 菱形：干扰器</span></div>
         <div class="map-wrap"><div id="map"></div><div class="map-badge">{{status}} · {{point?.name || '等待阵地'}}<span v-if="data">{{formatTime(data.at)}}</span></div><div v-if="mapMessage" class="tile-notice">{{mapMessage}}</div><div class="legend"><span><i style="background:#e45555"></i>高关注</span><span><i style="background:#ed9b32"></i>中关注</span><span><i style="background:#3899ce"></i>低关注</span><span><i style="background:#5aab87"></i>阈值外</span></div></div>
         <div class="map-caption">WGS84 · 水平距离 / 米<span>颜色针对选中阵地；距离远近不等于综合威胁</span></div>
       </div>
@@ -70,6 +70,8 @@ export default `
       <div v-else class="code-section"><div class="code-note">{{tab==='definition'?'模型定义：新增观测记录、评估记录和规则类别。':mode==='replay'?'历史快照：显示回放时间对应的观测、评估和规则，不是当前实时状态。':'最新事实：无人机通过当前评估关联观测、阵地和规则。'}}</div><pre><code>{{tab==='definition'?definition:instance||'暂无目标实例'}}</code></pre></div>
       <div class="ontology-footer"><span>对象属性连接对象，数据属性连接数值；距离和等级属于评估记录。</span><span>Python 计算 · RDF/OWL 表达 · SPARQL 查询</span></div>
     </section>
+    <p v-if="deviceError" class="alert">设备状态读取失败：{{deviceError}}；保留上次记录，请核对时间。</p>
+    <DeviceWorkbench :request="request" :data="deviceData" :selected-id="selectedDeviceId" :locate="locateDevice" :replay="mode!=='live'" />
     <LearningWorkbench :request="request" :data="data" :mode="mode" :highlight="highlightQuery" :focus-row="focusQueryRow" />
     <EvidenceWorkbench :request="request" :active="viewMode==='learning'" :locate="locateEvidence" :clear-point="clearEvidencePoint" />
     <footer>AirOntology<span>从观测到评估，理解业务关系。</span><span>有界历史 · 不启用自动推理</span></footer>
