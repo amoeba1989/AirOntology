@@ -130,3 +130,19 @@ def test_mqtt_routing_and_reference_order(store,settings):
         assert consumer.rejected==2
     finally:
         consumer.stop()
+
+
+def test_fuseki_abbreviated_strings_validate_without_weakening_enum(store,settings):
+    from rdflib import Graph
+    registry,frame,now=setup(store,settings);t.ingest(store,frame)
+    original=t.facts(store)
+    abbreviated=Graph()
+    for s,p,o in original:
+        if isinstance(o,Literal) and o.datatype==XSD.string:o=Literal(str(o))
+        abbreviated.add((s,p,o))
+    assert validate_facts(abbreviated,settings.ontology_dir)['conforms']
+    assert abbreviated.value(CU.drone001,CU.deviceKind).datatype is None
+    abbreviated.set((CU.drone001,CU.deviceKind,Literal('unsupported-device')))
+    report=validate_facts(abbreviated,settings.ontology_dir)
+    assert not report['conforms']
+    assert any(r['path']==str(CU.deviceKind) for r in report['results'])

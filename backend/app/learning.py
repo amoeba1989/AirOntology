@@ -1,6 +1,6 @@
 """Ontology learning views: bounded reads, fixed queries and SHACL without inference."""
 from datetime import datetime, timezone
-from rdflib import Graph, Namespace, RDF, RDFS, OWL, URIRef
+from rdflib import Graph, Namespace, RDF, RDFS, OWL, URIRef, Literal, XSD
 from pyshacl import validate
 from .domain import CU, SCHEMA, STATE, HISTORY, CONFIG, graph
 
@@ -155,6 +155,18 @@ def preset_query(query_id, config, target_id=None, position_id=None):
 
 def validate_facts(facts, directory):
     shapes = Graph().parse(directory / 'shapes.ttl', format='turtle')
+    # RDF 1.1 plain strings and xsd:string are the same RDF term. Fuseki
+    # abbreviates them in Turtle, while RDFLib retains different Python terms.
+    # Normalize copies on both sides so SHACL sh:in compares consistently.
+    def string_terms(source):
+        normalized=Graph()
+        for subject,predicate,value in source:
+            if isinstance(value,Literal) and value.datatype is None and value.language is None:
+                value=Literal(str(value),datatype=XSD.string)
+            normalized.add((subject,predicate,value))
+        return normalized
+    facts=string_terms(facts)
+    shapes=string_terms(shapes)
     conforms, report, _ = validate(facts, shacl_graph=shapes, inference='none',
                                    advanced=False, js=False, do_owl_imports=False)
     results = []
