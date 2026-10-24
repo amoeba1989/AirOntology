@@ -2,7 +2,7 @@ export default `
 <div class="workspace" :class="{screen:viewMode==='screen'}">
   <header>
     <div class="brand-mark">A<span>O</span></div><div class="brand">AirOntology<small>无人机本体 · 观测与评估工作台</small></div>
-    <span class="edition">DEMO / V2.4</span>
+    <span class="edition">{{target?.data_mode==='simulated'?'模拟数据':target?.data_mode==='operational'?'业务接入声明':target?'来源待核实':'本体演示'}}</span>
     <nav class="view-switch" aria-label="工作台视图"><button :class="{active:viewMode==='screen'}" @click="changeView('screen')">态势大屏</button><button :class="{active:viewMode==='learning'}" @click="changeView('learning')">本体学习</button></nav>
     <div class="header-right"><span class="status-dot" :class="{online:mode==='live'&&health?.mqtt.connected}"></span>{{status}}<span class="divider"></span><button @click="openConfig" :disabled="mode!=='live'">阵地与规则配置</button></div>
   </header>
@@ -16,6 +16,17 @@ export default `
       <div><span class="metric-label">选中目标 / 选中阵地</span><strong class="level-metric" :style="{color:assessment?.color}">{{assessment?.level_label || '待评估'}}</strong></div>
       <div class="dependency"><span :class="{connected:health?.mqtt.connected}">● MQTT {{health?.mqtt.connected?'已连接':'未连接'}}</span><span :class="{connected:health?.fuseki}">● Fuseki {{health?.fuseki?'可用':'未连接'}}</span></div>
     </div>
+    <aside class="screen-objects" aria-label="对象与关系">
+      <div class="screen-rail-head"><h2>对象与关系</h2><span>{{data?.targets.length||0}} 架目标</span></div>
+      <p class="rail-hint">阵地与设备部署关系来自登记；无人机是独立目标。</p>
+      <section class="rail-group" v-for="p in data?.positions" :key="p.id">
+        <button class="rail-position" :class="{active:p.id===point?.id}" @click="choosePosition(p.id)"><span class="rail-position-symbol">⌁</span><b>{{p.name}}</b><small>阵地</small></button>
+        <div class="rail-equipment" v-for="d in screenDevices.filter(x=>x.deployed_at===p.id&&x.kind!=='uav')" :key="d.id"><span :class="d.kind">{{d.kind==='radar'?'◎':'⌁'}}</span>{{d.name}}<small>{{d.kind==='jammer'&&d.state?.jammer ? (d.state.jammer.emitting?'上报发射':'上报未发射') : d.status_label}}</small></div>
+      </section>
+      <section class="rail-targets"><h3>无人机目标 <span>{{data?.targets.length||0}}</span></h3>
+        <button v-for="t in data?.targets" :key="t.id" class="rail-target" :class="{active:t.id===target?.id,stale:t.stale}" @click="chooseTarget(t.id)"><span class="rail-aircraft">✦</span><span class="rail-target-name">{{t.name}}<small>{{t.stale?'观测过期':(t.assessments.find(a=>a.position_id===point?.id)?.level_label||'待评估')}} · {{t.speed.toFixed(1)}} m/s</small></span><span class="rail-level" :style="{background:t.stale?'#748195':t.assessments.find(a=>a.position_id===point?.id)?.color||'#748195'}"></span></button>
+      </section>
+    </aside>
     <nav class="knowledge-nav" aria-label="本体导航"><a href="#alarm-panel">告警看板</a><button @click="openLearning">本体学习工作台</button><button @click="openDevices()">设备与阵地关系</button><button @click="openEvidence">多源观测与证据</button><button @click="openKnowledge('structure')">TBox · 类与属性定义</button><button @click="openKnowledge('abox')">ABox · 实例与关系</button></nav>
     <section id="alarm-panel" class="alarm-panel" :class="{urgent:alarmEntries.some(a=>a.level==='HighAttention')}" aria-labelledby="alarm-title">
       <div class="alarm-heading"><h2 id="alarm-title">{{mode==='live'?'实时距离告警':'历史快照 · 距离告警'}}</h2><strong>{{alarmEntries.length}} 条关注 · {{staleTargets.length}} 架数据过期</strong><span>{{formatTime(data?.at)}}</span></div>
@@ -31,6 +42,7 @@ export default `
         <input aria-label="回放进度" class="timeline" type="range" min="0" :max="records.length-1" v-model.number="frame" @input="stopPlayback();seek()">
         <span class="frame-label">{{frame+1}} / {{records.length}} · {{formatTime(records[frame]?.timestamp)}}</span><button @click="live">返回实时</button>
       </template>
+      <div v-if="mode==='live'&&viewMode==='screen'" class="live-observation-line"><span>{{target?.name||'等待目标'}} · 已观测 {{recentTrail.length}} 点</span><div class="observation-track" aria-label="近期已观测位置时间线"><i v-for="p in recentTrail.slice(-20)" :key="p.timestamp" :title="formatTime(p.timestamp)"></i></div><span>{{formatTime(target?.timestamp)}}</span></div>
       <span v-else class="muted replay-help">实时接入持续运行，回放不会发布或修改数据。</span>
     </div>
     <section class="situation-grid">
@@ -51,6 +63,21 @@ export default `
         </template><div v-else class="empty">{{loading?'正在连接数据服务':'等待模拟器发布观测'}}</div>
       </aside>
     </section>
+    <aside class="screen-insights" aria-label="当前关注与本体事实">
+      <div class="screen-rail-head"><h2>当前关注</h2><span>{{mode==='live'?'实时':'历史快照'}}</span></div>
+      <div class="insight-scroll">
+        <section class="focus-card" :style="{'--focus-color':target?.stale?'#899bad':assessment?.color||'#6e8da4'}" v-if="target">
+          <div class="focus-top"><span class="focus-symbol">✦</span><div><h3>{{target.name}}</h3><small>{{target.stale?'数据过期':assessment?.level_label||'等待新观测'}}</small></div></div>
+          <p>与{{point?.name||'选中阵地'}}的水平距离</p><strong>{{assessment?assessment.distance.toFixed(1):'—'}}<small> 米</small></strong>
+          <dl><div><dt>速度</dt><dd>{{target.speed.toFixed(1)}} m/s</dd></div><div><dt>观测时间</dt><dd>{{formatTime(target.timestamp)}}</dd></div><div v-if="mode==='live'&&selectedDevice?.state?.transform"><dt>演示高度</dt><dd>{{selectedDevice.state.transform.altitude_m?.toFixed(0)||'—'}} m</dd></div><div v-if="mode==='live'&&selectedDevice?.parameters?.demo_route_profile"><dt>合成航线</dt><dd>{{selectedDevice.parameters.demo_route_profile}}</dd></div></dl>
+          <div class="focus-disclaimer">仅按距离分级，不代表黑飞或综合威胁。</div>
+        </section>
+        <section class="insight-section"><div class="insight-title"><h3>距离关注</h3><span>{{alarmEntries.length}} 条</span></div><div class="insight-alerts"><button v-for="a in alarmEntries.slice(0,5)" :key="a.id" :style="{'--alarm-color':a.color}" @click="choosePosition(a.position_id);inspect(a)"><b>{{a.target_name}}</b><span>{{a.position_name}} · {{a.distance.toFixed(0)}} 米</span><strong>{{a.level_label}}</strong></button><p v-if="!alarmEntries.length">暂无有效距离关注；等待观测或目标位于阈值外。</p></div></section>
+        <section class="insight-section"><div class="insight-title"><h3>数据来源与处理</h3><span>可追溯</span></div><div class="source-flow"><span>{{target?.data_mode==='simulated'?'模拟 MQTT':target?.source||'待接入'}}<br><small>上报观测</small></span><b>→</b><span>Python<br><small>计算距离</small></span><b>→</b><span>RDF<br><small>记录评估</small></span></div><p class="source-note">{{target?.data_mode==='simulated'?'当前是合成演示数据。':'当前来源须按接入记录核实。'}}雷达、干扰器状态不等于探测或干扰效果。</p></section>
+        <section class="insight-section"><div class="insight-title"><h3>本体关系 · RDF/OWL</h3><button @click="openDevices()">查看设备 ↗</button></div><p class="ontology-relation" v-for="d in selectedDeployments" :key="d.id"><b>{{d.name}}</b><span>部署于</span><b>{{point?.name}}</b></p><p class="ontology-relation"><b>{{target?.name||'无人机'}}</b><span>关联独立距离评估</span><b>{{point?.name||'阵地'}}</b></p><small class="source-note">无人机不隶属于阵地；关系可在学习工作台查证。</small></section>
+        <section class="insight-section"><div class="insight-title"><h3>本体查询与验证</h3><span>学习入口</span></div><div class="insight-actions"><button @click="openKnowledge('structure')">TBox 类定义</button><button @click="openKnowledge('abox')">ABox 实例</button><button @click="openKnowledge('instance')">TTL 文本</button><button @click="openLearning">SPARQL / SHACL ↗</button></div></section>
+      </div>
+    </aside>
     <section class="analysis-grid">
       <div class="panel ranking-panel"><div class="panel-heading"><h2><span class="section-index">03</span>{{point?.name || '阵地'}} · 距离排序</h2><span class="tag">近 → 远</span></div>
         <div class="table-scroll"><table><thead><tr><th>目标</th><th>水平距离</th><th>等级 / 状态</th><th>依据</th></tr></thead><tbody><tr v-for="a in ranked" :key="a.id" :class="{selected:a.target_id===target?.id}"><td><button class="text-button" @click="chooseTarget(a.target_id)">{{a.target_name}}</button></td><td>{{a.distance.toFixed(1)}} m</td><td><span :style="{color:a.stale?'#87939e':a.color}">{{a.level_label}}</span><small v-if="a.stale"> · 过期</small><small v-if="a.config_pending"> · 旧配置</small></td><td><button @click="inspect(a)">查看评估</button></td></tr><tr v-if="!ranked.length"><td colspan="4">该阵地暂无评估，等待新观测。</td></tr></tbody></table></div>

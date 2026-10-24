@@ -9,6 +9,8 @@ from app.demo_telemetry import make_registry, make_frame
 from app.main import create_app
 from app.learning import validate_facts
 from app.domain import CU
+from app.domain import GEOD, classify
+from app.demo_routes import flight_sample
 
 
 def setup(store, settings):
@@ -146,3 +148,33 @@ def test_fuseki_abbreviated_strings_validate_without_weakening_enum(store,settin
     report=validate_facts(abbreviated,settings.ontology_dir)
     assert not report['conforms']
     assert any(r['path']==str(CU.deviceKind) for r in report['results'])
+
+
+def test_demo_routes_are_repeatable_continuous_and_change_attention(settings):
+    positions=settings.initial_config().positions
+    registry=make_registry(settings,'route-test',count=16)
+    assert len(registry.devices)==20
+    assert all(not device.deployed_at for device in registry.devices[:16])
+    assert len({d.parameters['demo_route_profile'] for d in registry.devices[:16]})==4
+    paths=[]
+    for i in range(16):
+        anchor=positions[i%len(positions)]
+        points=[flight_sample(anchor,i,tick,2) for tick in range(150)]
+        assert points==[flight_sample(anchor,i,tick,2) for tick in range(150)]
+        distances=[GEOD.inv(lon,lat,anchor.lon,anchor.lat)[2] for lon,lat,*_ in points]
+        steps=[GEOD.inv(a[0],a[1],b[0],b[1])[2] for a,b in zip(points,points[1:])]
+        assert all(0<step<35 for step in steps)
+        assert all(0<sample[3]<18 and 45<sample[4]<150 for sample in points)
+        paths.append(tuple(round(value/100) for value in distances))
+        if i<2:
+            assert len({classify(distance,settings) for distance in distances})>=3
+    assert len(set(paths))>=12
+    # At least some close approaches and some distant transits; no fixed radial oscillation.
+    assert any(min(path)<1 and max(path)>4 for path in paths)
+    f0=make_frame(settings,registry,0,interval=2)
+    f1=make_frame(settings,registry,1,interval=2)
+    for first,second in zip(f0.payload.entities[:16],f1.payload.entities[:16]):
+        bearing,_,distance=GEOD.inv(first.transform.longitude_deg,first.transform.latitude_deg,
+                                    second.transform.longitude_deg,second.transform.latitude_deg)
+        assert distance/2==pytest.approx(second.motion.speed_mps,abs=.01)
+        assert (bearing+360)%360==pytest.approx(second.transform.yaw_deg,abs=.1)

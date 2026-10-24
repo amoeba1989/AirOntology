@@ -99,6 +99,7 @@ services:
     - python
     - /app/simulator/main.py
     environment:
+      # 小规格ECS默认10架；如资源允许，可在shared/.env调整为16。
       DEMO_TARGET_COUNT: ${DEMO_TARGET_COUNT:-10}
       DEMO_INTERVAL_SECONDS: ${DEMO_INTERVAL_SECONDS:-2}
       MQTT_HOST: mqtt

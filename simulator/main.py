@@ -18,7 +18,7 @@ def main():
     def on_disconnect(client,userdata,flags,reason_code,properties):connected.clear()
     client.on_connect=on_connect;client.on_disconnect=on_disconnect;client.reconnect_delay_set(1,10)
     client.connect_async(settings.mqtt_host,settings.mqtt_port,30);client.loop_start()
-    count=max(1,min(100,int(os.getenv('DEMO_TARGET_COUNT','10'))))
+    count=max(1,min(100,int(os.getenv('DEMO_TARGET_COUNT','16'))))
     interval=max(1,min(30,float(os.getenv('DEMO_INTERVAL_SECONDS','2'))))
     registry=make_registry(settings,uuid4().hex,count)
     tick=0
@@ -33,7 +33,7 @@ def main():
                 needs_registration.clear()
             frame=make_frame(settings,registry,tick,interval)
             client.publish(settings.mqtt_telemetry_topic,frame.model_dump_json(),qos=1,retain=False)
-            print(f'模拟态势 tick={tick}：{count}架无人机、2部雷达、2部干扰器；部署关系由台账声明',flush=True)
+            print(f'模拟态势 tick={tick}：{count}架无人机、{len(registry.devices)-count}部登记设备；合成航线并非真实飞行',flush=True)
             tick+=1;stop.wait(interval)
     finally:
         client.disconnect();client.loop_stop()

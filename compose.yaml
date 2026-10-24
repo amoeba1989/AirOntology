@@ -77,7 +77,7 @@ services:
     command: ["python", "/app/simulator/main.py"]
     environment:
       <<: *app-env
-      DEMO_TARGET_COUNT: ${DEMO_TARGET_COUNT:-10}
+      DEMO_TARGET_COUNT: ${DEMO_TARGET_COUNT:-16}
       DEMO_INTERVAL_SECONDS: ${DEMO_INTERVAL_SECONDS:-2}
     depends_on:
       app:

@@ -93,6 +93,7 @@ createApp({
       document.getElementById('map')?.scrollIntoView?.({behavior:'smooth',block:'center'});
     }
     const trails = new Map();
+    const recentTrail = ref([]);
     const historyLoaded = new Set();
     const records = ref([]),
       historyTarget = ref(""),
@@ -137,6 +138,9 @@ createApp({
       .sort((a,b) => ["HighAttention", "MediumAttention", "LowAttention"].indexOf(a.level) - ["HighAttention", "MediumAttention", "LowAttention"].indexOf(b.level) || a.distance-b.distance));
     const staleTargets = computed(() => data.value?.targets.filter(t => t.stale) || []);
     const pendingCount = computed(() => data.value?.assessments.filter(a => a.config_pending).length || 0);
+    const screenDevices = computed(() => mode.value === 'live' ? deviceData.value?.devices || [] : []);
+    const selectedDevice = computed(() => screenDevices.value.find(d => d.id === target.value?.id));
+    const selectedDeployments = computed(() => screenDevices.value.filter(d => d.deployed_at === point.value?.id && d.kind !== 'uav'));
     async function openKnowledge(value) {
       await changeView('learning');
       await selectTab(value);
@@ -276,7 +280,7 @@ createApp({
             color,
             weight: i === 2 ? 4 : 3,
             dashArray: ["10 6", "5 5", null][i],
-            fillOpacity: 0.055,
+            fillOpacity: viewMode.value === 'screen' ? 0.09 : 0.055,
           }).addTo(layers);
           L.marker([circle.getBounds().getNorth(), point.value.lon], {
             interactive: false,
@@ -301,8 +305,8 @@ createApp({
             iconAnchor: [19, 19],
           }),
         }).addTo(layers);
-        marker.bindTooltip(tooltip(`无人机 · ${t.name}`), {
-          permanent: true,
+        marker.bindTooltip(tooltip(`无人机 · ${t.name}${t.stale ? ' · 数据过期' : ''}`), {
+          permanent: t.id === target.value?.id,
           direction: "top",
           offset: [0, -21],
           className: "map-label",
@@ -325,8 +329,7 @@ createApp({
             className: "distance-label",
           });
       }
-      pathLayer?.remove();
-      pathLayer = L.layerGroup().addTo(map);
+      pathLayer?.clearLayers();
       if (showTrails.value) {
         for (const [i, t] of data.value.targets.entries()) {
           const points =
@@ -341,16 +344,14 @@ createApp({
             Math.max(10, (data.value.stale_seconds || 30) * 2),
           )) {
             const coords = segment.map((p) => [p.lat, p.lon]);
-            L.polyline(coords, {
-              color: "#fff",
-              weight: 7,
-              opacity: 0.85,
-              interactive: false,
+            const active = t.id === target.value?.id;
+            if (active) L.polyline(coords, {
+              color: '#061421', weight: 8, opacity: .8, interactive: false,
             }).addTo(pathLayer);
             L.polyline(coords, {
-              color: ["#6554c0", "#087f8c", "#b34b83"][i % 3],
-              weight: t.id === target.value?.id ? 4 : 3,
-              opacity: 0.85,
+              color: active ? '#54d9ff' : ['#338ab8', '#7766ba', '#b28352'][i % 3],
+              weight: active ? 4 : 2,
+              opacity: active ? .95 : .46,
             })
               .addTo(pathLayer)
               .bindTooltip(tooltip(`${t.name} · 已观测轨迹`));
@@ -395,6 +396,7 @@ createApp({
     }
     async function chooseTarget(id) {
       selected.value = id;
+      recentTrail.value = trails.get(id) || [];
       trace.value = null;
       draw();
       if (tab.value === "instance")
@@ -446,12 +448,14 @@ createApp({
                     t.id,
                     mergeTrail(result.records, trails.get(t.id) || []),
                   );
+                  if (selected.value === t.id) recentTrail.value = trails.get(t.id) || [];
                   if (mode.value === "live") draw();
                 })
                 .catch(() => notice("历史轨迹暂未加载，继续绘制实时观测轨迹"));
             }
           }
           normalizeSelection();
+          recentTrail.value = trails.get(selected.value) || [];
           draw();
           if (tab.value === "instance") await loadInstance();
         }
@@ -540,8 +544,7 @@ createApp({
       snapshotToken++;
       mode.value = "live";
       trace.value = null;
-      pathLayer?.remove();
-      pathLayer = null;
+      pathLayer?.clearLayers();
       await poll();
     }
     async function openConfig() {
@@ -609,6 +612,7 @@ createApp({
         [39.9045, 116.4077],
         16,
       );
+      pathLayer = L.layerGroup().addTo(map);
       layers = L.layerGroup().addTo(map);
       L.control.zoom({ position: "bottomright" }).addTo(map);
       L.tileLayer(
@@ -672,6 +676,10 @@ createApp({
       alarmEntries,
       staleTargets,
       pendingCount,
+      screenDevices,
+      selectedDevice,
+      selectedDeployments,
+      recentTrail,
       openKnowledge,
       tab,
       definition,

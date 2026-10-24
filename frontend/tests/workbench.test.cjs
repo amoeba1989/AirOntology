@@ -70,6 +70,7 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
       timestamp: at,
       observation_id: `obs-${i}`,
       source: "测试模拟器",
+      data_mode: 'simulated',
       rule_version: "rule-test",
       thresholds: [100, 200, 300],
       stale_seconds: 5,
@@ -91,6 +92,7 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
       timestamp: at,
       source: "测试模拟器",
       stale: false,
+      data_mode: 'simulated',
       assessments,
     };
   });
@@ -200,6 +202,16 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
   try {
     win.eval(bundle.outputFiles[0].text);
     await until(() => doc.querySelectorAll(".drone-icon").length === 3);
+    assert.equal(doc.querySelectorAll('.screen-objects .rail-target').length,3);
+    assert.equal(doc.querySelectorAll('.screen-objects .rail-group').length,2);
+    assert.ok(doc.querySelector('.screen-insights').textContent.includes('模拟 MQTT'));
+    assert.ok(doc.querySelector('.screen-insights').textContent.includes('无人机不隶属于阵地'));
+    assert.equal(doc.querySelector('.screen-objects .rail-group .rail-target'),null);
+    assert.ok(doc.querySelector('.live-observation-line').textContent.includes('已观测'));
+    doc.querySelectorAll('.screen-objects .rail-target')[1].click();
+    await until(() => doc.querySelector('.focus-card h3')?.textContent === '无人机002');
+    doc.querySelectorAll('.screen-objects .rail-target')[0].click();
+    await until(() => doc.querySelector('.focus-card h3')?.textContent === '无人机001');
     assert.equal(doc.querySelectorAll(".position-icon").length, 2);
     assert.equal(doc.querySelectorAll(".ranking-panel tbody tr").length, 3);
     const selector = doc.querySelector('[aria-label="选择阵地"]');
