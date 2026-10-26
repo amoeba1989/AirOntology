@@ -55,7 +55,7 @@ export default {
   template: `
   <button v-if="!open" class="agent-orb" aria-label="打开智能态势问答" @click="toggle"><b>AI</b><span>态势问答</span></button>
   <section v-else class="agent-dialog" role="dialog" aria-label="智能态势问答" @keydown.esc="open=false">
-    <div class="agent-title"><div><b>智能态势问答</b><small>本体事实 · 策略排序 · 地图联动</small></div><button aria-label="收起智能问答" @click="open=false">收起 ×</button></div>
+    <div class="agent-title"><div class="agent-title-copy"><span class="agent-kicker"><i aria-hidden="true"></i> SITUATION INTELLIGENCE</span><b>智能态势问答</b><small>本体事实 · 策略排序 · 地图联动</small></div><button aria-label="收起智能问答" @click="open=false">收起 ×</button></div>
     <div class="agent-content">
       <div class="agent-context"><span>所选阵地：{{point?.name || '等待阵地'}}</span><span>{{configured?'DeepSeek 解读已配置':'规则演示模式'}}</span></div>
       <p class="agent-boundary">Python 按本体策略计算与排序；大模型只解释。当前依据是距离与可用趋势，不等同于综合威胁。</p>
