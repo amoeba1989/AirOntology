@@ -47,5 +47,8 @@ jobs:
           set +e
           docker ps -a --format 'table {{.Names}}\t{{.Status}}'
           docker inspect -f 'app status={{.State.Status}} health={{if .State.Health}}{{.State.Health.Status}}{{end}} exit={{.State.ExitCode}}' airontology-app-1
+          docker top airontology-app-1 -eo pid,etime,pcpu,pmem,comm
+          docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' airontology-app-1 airontology-fuseki-1
+          docker inspect -f '{{range .State.Health.Log}}{{.ExitCode}} {{.Output}}{{end}}' airontology-app-1 | tail -c 1200
           curl -sS --max-time 10 http://127.0.0.1:8092/api/health || true
           REMOTE
