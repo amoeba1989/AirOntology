@@ -16,6 +16,7 @@ import LearningWorkbench from "./learning.js";
 import AgentPanel from "./agent-panel.js";
 import EvidenceWorkbench from "./evidence.js";
 import DeviceWorkbench from "./devices.js";
+import OntologyTopology from "./ontology-topology.js";
 // 用户提供的四类业务图标统一存放在 public/icons，业务关系和颜色仍由数据决定。
 const icons = Object.freeze({
   uav: "/icons/uav.png",
@@ -25,7 +26,7 @@ const icons = Object.freeze({
 });
 
 createApp({
-  components: { LearningWorkbench, AgentPanel, EvidenceWorkbench, DeviceWorkbench },
+  components: { LearningWorkbench, AgentPanel, EvidenceWorkbench, DeviceWorkbench, OntologyTopology },
   setup() {
     const deviceData=ref(null),deviceError=ref(''),deviceReadAt=ref(''),selectedDeviceId=ref('');
     let devicePolling=false,deviceTimer;
@@ -42,8 +43,9 @@ createApp({
     async function locateDevice(d){
       if(mode.value!=='live')await live();
       if(!d.state?.transform)return;
+      await changeView('screen');
       map.setView(displayPoint(d.state.transform.latitude_deg,d.state.transform.longitude_deg),17,{animate:false});
-      document.getElementById('map')?.scrollIntoView?.({block:'center'});
+      selectMapDevice(d);
     }
     const data = ref(null),
       health = ref(null),
@@ -62,9 +64,17 @@ createApp({
       trace = ref(null);
     const showTrails = ref(true),
       showRanges = ref(true);
-    const viewMode = ref('screen');
+    const routeView = () => location.pathname.replace(/\/$/, '') === '/back' ? 'learning' : 'screen';
+    const viewMode = ref(routeView());
     async function changeView(value) {
+      const path = value === 'learning' ? '/back' : '/';
+      if (location.pathname !== path) history.pushState({ view: value }, '', path);
       viewMode.value = value;
+      await nextTick();
+      map?.invalidateSize();
+    }
+    async function syncRoute() {
+      viewMode.value = routeView();
       await nextTick();
       map?.invalidateSize();
     }
@@ -150,6 +160,13 @@ createApp({
     const screenDevices = computed(() => mode.value === 'live' ? deviceData.value?.devices || [] : []);
     const selectedDevice = computed(() => screenDevices.value.find(d => d.id === target.value?.id));
     const selectedDeployments = computed(() => screenDevices.value.filter(d => d.deployed_at === point.value?.id && d.kind !== 'uav'));
+    const selectedMapDevice = computed(() => screenDevices.value.find(d => d.id === selectedDeviceId.value && d.kind !== 'uav'));
+    function selectMapDevice(d) {
+      if (d.deployed_at && data.value?.positions.some(p => p.id === d.deployed_at)) positionId.value = d.deployed_at;
+      selectedDeviceId.value = d.id;
+      trace.value = null;
+      draw();
+    }
     async function openKnowledge(value) {
       await changeView('learning');
       await selectTab(value);
@@ -278,7 +295,7 @@ createApp({
         const stale=d.stale||!d.in_latest_frame||!!deviceError.value;
         const marker=L.marker(displayPoint(p.latitude_deg,p.longitude_deg),{opacity:stale ? 0.5 : 1,icon:L.divIcon({className:'',html:`<div class="equipment-icon ${d.kind}"><img src="${icon}" alt=""></div>`,iconSize:[36,36],iconAnchor:[18,18]})}).addTo(layers);
         marker.bindTooltip(tooltip(d.kind_label+' · '+d.name+' · 模拟数据 · '+d.status_label),{direction:'top'});
-        marker.on('click',()=>openDevices(d.id));
+        marker.on('click',()=>selectMapDevice(d));
       }
       const thresholds = assessment.value?.thresholds || data.value.thresholds;
       if (point.value && showRanges.value)
@@ -407,10 +424,11 @@ createApp({
     }
     async function chooseTarget(id) {
       selected.value = id;
+      selectedDeviceId.value = '';
       recentTrail.value = trails.get(id) || [];
       trace.value = null;
       draw();
-      if (tab.value === "instance")
+      if (viewMode.value === 'learning' && tab.value === "instance")
         try {
           await loadInstance();
         } catch (e) {
@@ -419,13 +437,16 @@ createApp({
     }
     function choosePosition(id) {
       positionId.value = id;
+      selectedDeviceId.value = '';
       trace.value = null;
       draw();
     }
     async function inspect(entry) {
       selected.value = entry.target_id;
+      selectedDeviceId.value = '';
       trace.value = entry;
       draw();
+      if (viewMode.value === 'screen') return;
       try {
         const result = await request(`/api/assessments/${entry.id}`);
         if (trace.value?.id === entry.id) trace.value = result;
@@ -618,6 +639,7 @@ createApp({
       }
     }
     onMounted(async () => {
+      window.addEventListener('popstate', syncRoute);
       await nextTick();
       map = L.map("map", { zoomControl: false }).setView(
         [39.9045, 116.4077],
@@ -680,6 +702,7 @@ createApp({
       timer = setInterval(poll, 3000);
     });
     onUnmounted(() => {
+      window.removeEventListener('popstate', syncRoute);
       closed = true;
       snapshotToken++;
       clearInterval(timer);
@@ -716,6 +739,8 @@ createApp({
       screenDevices,
       selectedDevice,
       selectedDeployments,
+      selectedMapDevice,
+      selectMapDevice,
       recentTrail,
       openKnowledge,
       tab,

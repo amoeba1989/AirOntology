@@ -7,7 +7,7 @@ import threading
 import re
 import httpx
 from fastapi import FastAPI, HTTPException, Path as PathParam, Query, Request
-from fastapi.responses import PlainTextResponse, StreamingResponse, Response
+from fastapi.responses import PlainTextResponse, StreamingResponse, Response, FileResponse
 from starlette.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from rdflib import Graph, OWL, RDFS, RDF
@@ -425,6 +425,11 @@ def create_app(settings=None, store=None, enable_mqtt=True):
 
     static_dir=Path(__file__).resolve().parents[2]/'frontend'/'dist'
     if static_dir.is_dir():
+        @app.get('/back', include_in_schema=False)
+        @app.get('/back/', include_in_schema=False)
+        def learning_page():
+            return FileResponse(static_dir/'index.html')
+
         app.mount('/',StaticFiles(directory=static_dir,html=True),name='frontend')
     return app
 

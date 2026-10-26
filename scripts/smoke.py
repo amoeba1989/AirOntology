@@ -18,6 +18,8 @@ def post(path, body=None):
     with opener.open(request,timeout=20) as response:
         return json.loads(response.read())
 
+assert '<div id="app"></div>' in get('/back'), '本体学习路由须支持直接打开与刷新'
+
 for attempt in range(60):
     try:
         health=json.loads(get('/api/health'))

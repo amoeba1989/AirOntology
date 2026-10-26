@@ -85,6 +85,8 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     evaluations.push(...assessments);
     return {
       id,
+      uri: `http://counteruav.org/counterUav#${id}`,
+      observation_id: `obs-${i}`,
       name: `无人机00${i + 1}`,
       lon: 116.408 + i * 0.001,
       lat: 39.9045,
@@ -207,12 +209,19 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     assert.equal(doc.querySelectorAll('.screen-objects .rail-group').length,2);
     assert.equal(doc.querySelector('.rail-position-symbol img').getAttribute('src'),'/icons/position.png');
     assert.equal(doc.querySelector('.rail-aircraft img').getAttribute('src'),'/icons/uav.png');
-    assert.ok(doc.querySelector('.screen-insights').textContent.includes('模拟 MQTT'));
+    assert.ok(doc.querySelector('.screen-insights').textContent.includes('ABox 事实'));
     assert.ok(doc.querySelector('.screen-insights').textContent.includes('无人机不隶属于阵地'));
     assert.equal(doc.querySelector('.screen-objects .rail-group .rail-target'),null);
     assert.ok(doc.querySelector('.live-observation-line').textContent.includes('已观测'));
     doc.querySelectorAll('.screen-objects .rail-target')[1].click();
     await until(() => doc.querySelector('.focus-card h3')?.textContent === '无人机002');
+    assert.equal(win.location.pathname,'/');
+    assert.ok(doc.querySelector('.ontology-live').textContent.includes('无人机002'));
+    assert.ok(doc.querySelector('.ontology-live').textContent.includes('最新观测'));
+    doc.querySelector('.topology-tabs button:last-child').click();
+    await until(()=>doc.querySelector('.topology-node.entity')?.textContent.includes('无人机目标'));
+    assert.ok(doc.querySelector('.ontology-live').textContent.includes('观测记录'));
+    doc.querySelector('.topology-tabs button:first-child').click();
     doc.querySelectorAll('.screen-objects .rail-target')[0].click();
     await until(() => doc.querySelector('.focus-card h3')?.textContent === '无人机001');
     assert.equal(doc.querySelectorAll(".position-icon").length, 2);
@@ -234,6 +243,7 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     assert.equal(doc.querySelectorAll(".alarm-card").length, 3);
     assert.ok(doc.querySelector(".alarm-panel.urgent"));
     button("ABox · 实例与关系").click();
+    await until(()=>win.location.pathname==='/back');
     await until(() => doc.querySelectorAll(".abox-grid article").length === 5);
     assert.equal(doc.querySelectorAll(".abox-table tbody tr").length, 6);
     assert.ok(doc.querySelector(".abox-view").textContent.includes("rule-test"));
@@ -363,8 +373,18 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     await until(()=>doc.querySelector('.device-query').textContent.includes('查询到 1 条'));
     button('校验设备与关系').click();
     await until(()=>doc.querySelector('.device-validation')?.textContent.includes('结构通过'));
+    doc.querySelector('.view-switch button:first-child').click();
+    await until(()=>win.location.pathname==='/');
     doc.querySelector('.equipment-icon.radar').click();
-    await until(()=>doc.querySelector('.device-detail')?.textContent.includes('雷达001'));
+    await until(()=>doc.querySelector('.focus-card h3')?.textContent==='雷达001');
+    assert.ok(doc.querySelector('.ontology-live').textContent.includes('部署于'));
+    assert.ok(doc.querySelector('.ontology-live').textContent.includes('最近状态'));
+    assert.equal(win.location.pathname,'/');
+    doc.querySelector('.view-switch button:last-child').click();
+    await until(()=>win.location.pathname==='/back');
+    win.history.back();
+    await until(()=>win.location.pathname==='/');
+    assert.ok(doc.querySelector('.screen-insights').textContent.includes('雷达001'));
     assert.deepEqual(errors, []);
   } finally {
     dom.window.close();

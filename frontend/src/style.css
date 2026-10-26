@@ -1236,7 +1236,8 @@ td small {
 .rail-position b {font-size:13px;flex:1}.rail-position small {font-size:10px;color:#8cafc7}
 .rail-position-symbol {display:grid;place-items:center;width:28px;height:28px;border-radius:4px;background:#102b43}
 .rail-position-symbol img {width:27px;height:27px}
-.rail-equipment {display:flex;gap:8px;align-items:center;padding:5px 8px 5px 43px;color:#b9d4e5;font-size:12px}
+.rail-equipment {display:flex;gap:8px;align-items:center;width:100%;text-align:left;border:1px solid transparent;background:transparent;padding:5px 8px 5px 43px;color:#b9d4e5;font-size:12px}
+.rail-equipment:hover,.rail-equipment.active {background:#123d59;border-color:#2e81a9;color:#fff}
 .rail-equipment span {display:grid;place-items:center;width:22px;height:22px;flex:none}
 .rail-equipment img {width:24px;height:24px}
 .rail-equipment small {margin-left:auto;font-size:9px;color:#83a3b9;text-align:right;max-width:96px}
@@ -1296,6 +1297,20 @@ td small {
 .ontology-relation {padding:9px;margin:5px 0;background:#102e45;border:1px solid #31516a;border-radius:5px;font-size:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .ontology-relation b {color:#d4f0ff}.ontology-relation span {color:#75bbd8}
 .insight-actions {display:grid;grid-template-columns:1fr 1fr;gap:6px}.insight-actions button {padding:9px 4px}
+.screen .insight-scroll {flex:1;overflow:hidden;gap:8px;padding:10px;justify-content:space-between}
+.screen .focus-card {padding:9px 11px;flex:none}
+.screen .focus-top h3 {font-size:14px}.screen .focus-symbol {width:31px;height:31px}.screen .focus-symbol img {max-width:31px;max-height:31px}
+.screen .focus-card>p {margin:4px 0 0}.screen .focus-card>strong {font-size:21px}.focus-context {display:block;margin-top:3px;color:#abc8d8;font-size:10px}
+.ontology-live {display:flex;flex-direction:column;min-height:0;flex:1;border:1px solid #315f7a;background:#0c2a41;border-radius:6px;padding:10px;color:#d7edfa}
+.ontology-live-head {display:flex;flex-wrap:wrap;gap:6px;justify-content:space-between;align-items:center;flex:none}.ontology-live-head h3 {font-size:13px;margin:0}.ontology-live-head small {font-size:10px;color:#9bc1d8}
+.topology-tabs {display:flex;gap:4px}.topology-tabs button {font-size:10px;padding:4px 6px;background:#143b56;border-color:#38617a;color:#c8e5f6}.topology-tabs button.active {background:#23749d;color:#fff}
+.topology-canvas {position:relative;flex:1;min-height:155px;margin:8px 0;background:radial-gradient(circle at 50% 40%,#174768,#0a263c 72%);border:1px solid #28516d;border-radius:5px;overflow:hidden}
+.topology-links {position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.topology-links text {fill:#b4d8eb;font-size:9px;paint-order:stroke;stroke:#0a263c;stroke-width:3px}
+.topology-node {position:absolute;transform:translate(-50%,-50%);width:80px;min-height:42px;padding:4px;border:1px solid #529bc0;border-radius:5px;background:#113a55;color:#e4f7ff;box-shadow:0 3px 12px #0008;text-align:center;overflow:hidden;text-overflow:ellipsis}
+.topology-node:hover,.topology-node.active {border-color:#66ddf9;background:#1d6487}.topology-node small {display:block;color:#add4e7;font-size:9px}.topology-node b {display:block;font-size:10px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.topology-detail {display:grid;gap:3px;background:#102f48;padding:7px 9px;border-left:3px solid #44afdc;border-radius:4px;flex:none;min-height:61px}.topology-detail b {font-size:11px}.topology-detail span,.topology-note,.topology-empty {font-size:10px;color:#a6c8da;margin:0;line-height:1.4}.topology-detail code {font-size:9px;color:#86bbd5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topology-note {margin-top:5px;flex:none}.topology-empty {flex:1;display:grid;place-items:center}
+.screen .insight-alert-strip {flex:none;padding-top:5px}.screen .insight-alert-strip .insight-title {margin-bottom:4px}.screen .insight-alerts {display:flex;overflow:hidden;gap:4px}.screen .insight-alerts button {flex:1;min-width:0;padding:5px;display:block}.screen .insight-alerts button b,.screen .insight-alerts button span {display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.screen .insight-alerts button strong {font-size:10px}
 @media(max-width:1150px){.screen main {grid-template-columns:210px minmax(0,1fr) 275px}.screen .overview .dependency {font-size:9px}.rail-equipment small {display:none}}
 @media(max-width:850px){.screen {height:auto;min-height:100dvh;overflow:auto}.screen header {height:auto;min-height:58px;flex-wrap:wrap;padding:8px}.screen main {height:auto;min-height:calc(100dvh - 58px);display:grid;grid-template-columns:minmax(0,1fr) 280px;grid-template-rows:auto minmax(500px,70vh) auto auto;overflow:visible}.screen .overview {grid-column:1/-1;grid-row:1;flex-wrap:wrap}.screen .screen-objects {grid-column:1;grid-row:3;max-height:350px}.screen .screen-insights {grid-column:2;grid-row:2/4}.screen .situation-grid {grid-column:1;grid-row:2}.screen .replay-bar {grid-column:1/-1;grid-row:4}}
 @media(max-width:630px){.screen main {display:flex;flex-direction:column}.screen .overview {min-height:75px}.screen .situation-grid {height:440px}.screen .screen-objects {max-height:320px}.screen .screen-insights {max-height:620px}.screen .map-wrap {min-height:300px}.screen .replay-bar {min-height:65px}.screen .overview strong,.screen .overview strong.level-metric {font-size:17px}.screen .overview .dependency {display:none}}

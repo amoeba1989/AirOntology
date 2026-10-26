@@ -21,7 +21,7 @@ export default `
       <p class="rail-hint">阵地与设备部署关系来自登记；无人机是独立目标。</p>
       <section class="rail-group" v-for="p in data?.positions" :key="p.id">
         <button class="rail-position" :class="{active:p.id===point?.id}" @click="choosePosition(p.id)"><span class="rail-position-symbol"><img :src="icons.position" alt=""></span><b>{{p.name}}</b><small>阵地</small></button>
-        <div class="rail-equipment" v-for="d in screenDevices.filter(x=>x.deployed_at===p.id&&x.kind!=='uav')" :key="d.id"><span :class="d.kind"><img :src="icons[d.kind]" alt=""></span>{{d.name}}<small>{{d.kind==='jammer'&&d.state?.jammer ? (d.state.jammer.emitting?'上报发射':'上报未发射') : d.status_label}}</small></div>
+        <button class="rail-equipment" :class="{active:selectedMapDevice?.id===d.id}" v-for="d in screenDevices.filter(x=>x.deployed_at===p.id&&x.kind!=='uav')" :key="d.id" @click="selectMapDevice(d)"><span :class="d.kind"><img :src="icons[d.kind]" alt=""></span>{{d.name}}<small>{{d.kind==='jammer'&&d.state?.jammer ? (d.state.jammer.emitting?'上报发射':'上报未发射') : d.status_label}}</small></button>
       </section>
       <section class="rail-targets"><h3>无人机目标 <span>{{data?.targets.length||0}}</span></h3>
         <button v-for="t in data?.targets" :key="t.id" class="rail-target" :class="{active:t.id===target?.id,stale:t.stale}" @click="chooseTarget(t.id)"><span class="rail-aircraft"><img :src="icons.uav" alt=""></span><span class="rail-target-name">{{t.name}}<small>{{t.stale?'观测过期':(t.assessments.find(a=>a.position_id===point?.id)?.level_label||'待评估')}} · {{t.speed.toFixed(1)}} m/s</small></span><span class="rail-level" :style="{background:t.stale?'#748195':t.assessments.find(a=>a.position_id===point?.id)?.color||'#748195'}"></span></button>
@@ -48,7 +48,7 @@ export default `
     <section class="situation-grid">
       <div class="panel map-panel">
         <div class="panel-heading"><h2><span class="section-index">01</span>{{mode==='replay'?'历史态势':'实时态势'}}</h2><div><label class="follow"><input type="checkbox" v-model="follow">跟随目标</label><button @click="locate">定位全景 ↗</button></div></div>
-        <div class="map-controls"><label><input type="checkbox" v-model="showTrails" @change="draw">无人机轨迹</label><label><input type="checkbox" v-model="showRanges" @change="draw">距离分级圈</label><button @click="openDevices()">设备与关系</button><span>无人机、阵地、雷达塔、干扰器使用各自图标</span></div>
+        <div class="map-controls"><label><input type="checkbox" v-model="showTrails" @change="draw">无人机轨迹</label><label><input type="checkbox" v-model="showRanges" @change="draw">距离分级圈</label><span>点击地图对象，右侧查看本体关系</span></div>
         <div class="map-wrap"><div id="amap-basemap" aria-hidden="true"></div><div id="map"></div><div class="map-badge">{{status}} · {{point?.name || '等待阵地'}}<span v-if="data">{{formatTime(data.at)}}</span></div><div v-if="mapMessage" class="tile-notice">{{mapMessage}}</div><div class="legend"><span><i style="background:#e45555"></i>高关注</span><span><i style="background:#ed9b32"></i>中关注</span><span><i style="background:#3899ce"></i>低关注</span><span><i style="background:#5aab87"></i>阈值外</span></div></div>
         <div class="map-caption">业务坐标 WGS84 · {{satelliteActive?'高德卫星底图 GCJ-02':'标准底图'}} · 水平距离 / 米<span>颜色针对选中阵地；距离远近不等于综合威胁</span></div>
       </div>
@@ -64,18 +64,15 @@ export default `
       </aside>
     </section>
     <aside class="screen-insights" aria-label="当前关注与本体事实">
-      <div class="screen-rail-head"><h2>当前关注</h2><span>{{mode==='live'?'实时':'历史快照'}}</span></div>
+      <div class="screen-rail-head"><h2>对象本体与当前关注</h2><span>{{mode==='live'?'实时':'历史快照'}}</span></div>
       <div class="insight-scroll">
-        <section class="focus-card" :style="{'--focus-color':target?.stale?'#899bad':assessment?.color||'#6e8da4'}" v-if="target">
-          <div class="focus-top"><span class="focus-symbol"><img :src="icons.uav" alt=""></span><div><h3>{{target.name}}</h3><small>{{target.stale?'数据过期':assessment?.level_label||'等待新观测'}}</small></div></div>
-          <p>与{{point?.name||'选中阵地'}}的水平距离</p><strong>{{assessment?assessment.distance.toFixed(1):'—'}}<small> 米</small></strong>
-          <dl><div><dt>速度</dt><dd>{{target.speed.toFixed(1)}} m/s</dd></div><div><dt>观测时间</dt><dd>{{formatTime(target.timestamp)}}</dd></div><div v-if="mode==='live'&&selectedDevice?.state?.transform"><dt>演示高度</dt><dd>{{selectedDevice.state.transform.altitude_m?.toFixed(0)||'—'}} m</dd></div><div v-if="mode==='live'&&selectedDevice?.parameters?.demo_route_profile"><dt>合成航线</dt><dd>{{selectedDevice.parameters.demo_route_profile}}</dd></div></dl>
-          <div class="focus-disclaimer">仅按距离分级，不代表黑飞或综合威胁。</div>
+        <section class="focus-card" :style="{'--focus-color':selectedMapDevice?'#68c9e4':target?.stale?'#899bad':assessment?.color||'#6e8da4'}" v-if="target||selectedMapDevice">
+          <div class="focus-top"><span class="focus-symbol"><img :src="icons[selectedMapDevice?.kind||'uav']" alt=""></span><div><h3>{{selectedMapDevice?.name||target?.name}}</h3><small>{{selectedMapDevice?.status_label|| (target?.stale?'数据过期':assessment?.level_label||'等待新观测')}}</small></div></div>
+          <p>{{selectedMapDevice?'登记部署于 '+(point?.name||'阵地'):'到'+(point?.name||'阵地')+'的水平距离'}}</p><strong v-if="!selectedMapDevice">{{assessment?assessment.distance.toFixed(1):'—'}}<small> 米</small></strong>
+          <small class="focus-context">{{selectedMapDevice?'设备状态来源：最近一帧 MQTT；不代表探测或干扰效果。':'观测时间 '+formatTime(target.timestamp)+' · 仅按距离分级。'}}</small>
         </section>
-        <section class="insight-section"><div class="insight-title"><h3>距离关注</h3><span>{{alarmEntries.length}} 条</span></div><div class="insight-alerts"><button v-for="a in alarmEntries.slice(0,5)" :key="a.id" :style="{'--alarm-color':a.color}" @click="choosePosition(a.position_id);inspect(a)"><b>{{a.target_name}}</b><span>{{a.position_name}} · {{a.distance.toFixed(0)}} 米</span><strong>{{a.level_label}}</strong></button><p v-if="!alarmEntries.length">暂无有效距离关注；等待观测或目标位于阈值外。</p></div></section>
-        <section class="insight-section"><div class="insight-title"><h3>数据来源与处理</h3><span>可追溯</span></div><div class="source-flow"><span>{{target?.data_mode==='simulated'?'模拟 MQTT':target?.source||'待接入'}}<br><small>上报观测</small></span><b>→</b><span>Python<br><small>计算距离</small></span><b>→</b><span>RDF<br><small>记录评估</small></span></div><p class="source-note">{{target?.data_mode==='simulated'?'当前是合成演示数据。':'当前来源须按接入记录核实。'}}雷达、干扰器状态不等于探测或干扰效果。</p></section>
-        <section class="insight-section"><div class="insight-title"><h3>本体关系 · RDF/OWL</h3><button @click="openDevices()">查看设备 ↗</button></div><p class="ontology-relation" v-for="d in selectedDeployments" :key="d.id"><b>{{d.name}}</b><span>部署于</span><b>{{point?.name}}</b></p><p class="ontology-relation"><b>{{target?.name||'无人机'}}</b><span>关联独立距离评估</span><b>{{point?.name||'阵地'}}</b></p><small class="source-note">无人机不隶属于阵地；关系可在学习工作台查证。</small></section>
-        <section class="insight-section"><div class="insight-title"><h3>本体查询与验证</h3><span>学习入口</span></div><div class="insight-actions"><button @click="openKnowledge('structure')">TBox 类定义</button><button @click="openKnowledge('abox')">ABox 实例</button><button @click="openKnowledge('instance')">TTL 文本</button><button @click="openLearning">SPARQL / SHACL ↗</button></div></section>
+        <OntologyTopology :target="target" :assessment="assessment" :position="point" :device="selectedMapDevice" :mode="mode" />
+        <section class="insight-section insight-alert-strip"><div class="insight-title"><h3>距离关注</h3><span>{{alarmEntries.length}} 条</span></div><div class="insight-alerts"><button v-for="a in alarmEntries.slice(0,2)" :key="a.id" :style="{'--alarm-color':a.color}" @click="choosePosition(a.position_id);inspect(a)"><b>{{a.target_name}}</b><span>{{a.position_name}} · {{a.distance.toFixed(0)}} 米</span><strong>{{a.level_label}}</strong></button><p v-if="!alarmEntries.length">当前无有效距离告警</p></div></section>
       </div>
     </aside>
     <section class="analysis-grid">
