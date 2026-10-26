@@ -1,5 +1,5 @@
 export default `
-<div class="workspace" :class="{screen:viewMode==='screen'}">
+<div class="workspace" :class="{screen:viewMode==='screen','learning-mode':viewMode==='learning'}">
   <header>
     <div class="brand-mark">A<span>O</span></div><div class="brand">AirOntology<small>无人机本体 · 观测与评估工作台</small></div>
     <span class="edition">{{target?.data_mode==='simulated'?'模拟数据':target?.data_mode==='operational'?'业务接入声明':target?'来源待核实':'本体演示'}}</span>
@@ -48,9 +48,9 @@ export default `
     <section class="situation-grid">
       <div class="panel map-panel">
         <div class="panel-heading"><h2><span class="section-index">01</span>{{mode==='replay'?'历史态势':'实时态势'}}</h2><div><label class="follow"><input type="checkbox" v-model="follow">跟随目标</label><button @click="locate">定位全景 ↗</button></div></div>
-        <div class="map-controls"><label><input type="checkbox" v-model="showTrails" @change="draw">无人机轨迹</label><label><input type="checkbox" v-model="showRanges" @change="draw">距离分级圈</label><span>点击地图对象，右侧查看本体关系</span></div>
-        <div class="map-wrap"><div id="amap-basemap" aria-hidden="true"></div><div id="map"></div><div class="map-badge">{{status}} · {{point?.name || '等待阵地'}}<span v-if="data">{{formatTime(data.at)}}</span></div><div v-if="mapMessage" class="tile-notice">{{mapMessage}}</div><div class="legend"><span><i style="background:#e45555"></i>高关注</span><span><i style="background:#ed9b32"></i>中关注</span><span><i style="background:#3899ce"></i>低关注</span><span><i style="background:#5aab87"></i>阈值外</span></div></div>
-        <div class="map-caption">业务坐标 WGS84 · {{satelliteActive?'高德卫星底图 GCJ-02':'标准底图'}} · 水平距离 / 米<span>颜色针对选中阵地；距离远近不等于综合威胁</span></div>
+        <div class="map-controls"><div class="basemap-switch" role="group" aria-label="地图底图"><button :class="{active:mapStyle==='dark'}" @click="switchBasemap('dark')">ArcGIS 深灰</button><button :class="{active:mapStyle==='satellite'}" :disabled="!satelliteAvailable" :title="satelliteAvailable?'切换高德卫星':'高德卫星尚未配置'" @click="switchBasemap('satellite')">卫星影像</button></div><label><input type="checkbox" v-model="showTrails" @change="draw">观测轨迹</label><label><input type="checkbox" v-model="showRanges" @change="draw">关注范围</label><span>点击地图对象，右侧查看本体关系</span></div>
+        <div class="map-wrap"><div id="amap-basemap" aria-hidden="true"></div><div id="map"></div><div class="map-badge">{{status}} · {{point?.name || '等待阵地'}}<span v-if="data">{{formatTime(data.at)}}</span></div><div v-if="mapMessage" class="tile-notice">{{mapMessage}}</div><div class="legend" aria-label="地图符号图例"><span><img :src="icons.uav" alt="">无人机（图标固定向上）</span><span><img :src="icons.position" alt="">阵地</span><span><i class="legend-track"></i>已观测轨迹</span><span><i class="legend-link"></i>目标到阵地距离</span><span><i class="legend-range"></i>距离分级范围</span></div></div>
+        <div class="map-caption">{{basemapName}} · 业务坐标 WGS84 {{satelliteActive?'· 显示坐标 GCJ-02':''}}<span>轨迹为离散观测连线；距离颜色针对选中阵地</span></div>
       </div>
       <aside class="panel details">
         <div class="panel-heading"><h2><span class="section-index">02</span>对象详情</h2><span class="tag">实例</span></div>
@@ -72,7 +72,6 @@ export default `
           <small class="focus-context">{{selectedMapDevice?'设备状态来源：最近一帧 MQTT；不代表探测或干扰效果。':'观测时间 '+formatTime(target.timestamp)+' · 仅按距离分级。'}}</small>
         </section>
         <OntologyTopology :target="target" :assessment="assessment" :position="point" :device="selectedMapDevice" :mode="mode" />
-        <section class="insight-section insight-alert-strip"><div class="insight-title"><h3>距离关注</h3><span>{{alarmEntries.length}} 条</span></div><div class="insight-alerts"><button v-for="a in alarmEntries.slice(0,2)" :key="a.id" :style="{'--alarm-color':a.color}" @click="choosePosition(a.position_id);inspect(a)"><b>{{a.target_name}}</b><span>{{a.position_name}} · {{a.distance.toFixed(0)}} 米</span><strong>{{a.level_label}}</strong></button><p v-if="!alarmEntries.length">当前无有效距离告警</p></div></section>
       </div>
     </aside>
     <section class="analysis-grid">

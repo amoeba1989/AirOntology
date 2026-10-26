@@ -28,6 +28,16 @@ export function wgs84ToGcj02(lat, lon) {
   return [lat+dLat, lon+dLon];
 }
 
+export function gcj02ToWgs84(lat, lon) {
+  let guessLat = lat, guessLon = lon;
+  for (let i = 0; i < 3; i++) {
+    const [convertedLat, convertedLon] = wgs84ToGcj02(guessLat, guessLon);
+    guessLat += lat - convertedLat;
+    guessLon += lon - convertedLon;
+  }
+  return [guessLat, guessLon];
+}
+
 export async function attachAmapSatellite(leafletMap, key, host) {
   if (!key) return null;
   window._AMapSecurityConfig = {serviceHost: host || `${location.origin}/_AMapService`};

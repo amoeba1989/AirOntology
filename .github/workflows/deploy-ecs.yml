@@ -65,6 +65,7 @@ jobs:
         env:
           VITE_TILE_URL: ${{ vars.VITE_TILE_URL }}
           VITE_TILE_ATTRIBUTION: ${{ vars.VITE_TILE_ATTRIBUTION }}
+          VITE_ARCGIS_TOKEN: ${{ vars.VITE_ARCGIS_TOKEN }}
         run: |
           cp .env.example .env
           docker compose build

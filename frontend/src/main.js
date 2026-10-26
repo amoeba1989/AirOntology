@@ -11,7 +11,8 @@ import "leaflet/dist/leaflet.css";
 import "./style.css";
 import template from "./template.js";
 import { mergeTrail, trailSegments } from "./map-utils.js";
-import { wgs84ToGcj02, attachAmapSatellite } from "./amap-basemap.js";
+import { wgs84ToGcj02, gcj02ToWgs84, attachAmapSatellite } from "./amap-basemap.js";
+import { darkBasemapConfig, ESRI_ATTRIBUTION } from "./map-basemap.js";
 import LearningWorkbench from "./learning.js";
 import AgentPanel from "./agent-panel.js";
 import EvidenceWorkbench from "./evidence.js";
@@ -126,6 +127,13 @@ createApp({
       pathLayer,
       removeSatellite,
       satelliteActive = ref(false),
+      satelliteAvailable = ref(false),
+      mapStyle = ref('dark'),
+      basemapName = ref('ArcGIS 深灰底图'),
+      darkLayers = [],
+      fallbackLayer,
+      tileErrors = 0,
+      satelliteKey = '',
       timer,
       playTimer,
       closed = false,
@@ -133,6 +141,39 @@ createApp({
       initialized = false,
       snapshotToken = 0;
     const displayPoint=(lat,lon)=>satelliteActive.value?wgs84ToGcj02(lat,lon):[lat,lon];
+    async function switchBasemap(value) {
+      if (!map || value === mapStyle.value) return;
+      if (value === 'satellite') {
+        if (!satelliteKey) { mapMessage.value = '高德卫星图尚未配置，继续显示 ArcGIS 深灰底图。'; return; }
+        const center = map.getCenter();
+        satelliteActive.value = true;
+        map.setView(displayPoint(center.lat, center.lng), map.getZoom(), {animate:false});
+        try {
+          removeSatellite = await attachAmapSatellite(map, satelliteKey);
+          darkLayers.forEach(layer => map.removeLayer(layer));
+          fallbackLayer && map.removeLayer(fallbackLayer);
+          document.getElementById('map')?.classList.add('satellite-overlay');
+          mapStyle.value = 'satellite'; basemapName.value = '高德卫星影像'; mapMessage.value = '';
+          draw();
+        } catch (cause) {
+          satelliteActive.value = false;
+          map.setView([center.lat, center.lng], map.getZoom(), {animate:false});
+          mapMessage.value = `卫星影像加载失败：${cause.message}`;
+          draw();
+        }
+      } else {
+        removeSatellite?.(); removeSatellite = null;
+        document.getElementById('map')?.classList.remove('satellite-overlay');
+        const center = map.getCenter();
+        satelliteActive.value = false;
+        map.setView(gcj02ToWgs84(center.lat, center.lng), map.getZoom(), {animate:false});
+        if (tileErrors >= 3) fallbackLayer.addTo(map);
+        else darkLayers.forEach(layer => layer.addTo(map));
+        mapStyle.value = 'dark'; basemapName.value = tileErrors >= 3 ? '备用标准底图' : 'ArcGIS 深灰底图';
+        mapMessage.value = tileErrors >= 3 ? 'ArcGIS 底图暂不可用，已切换备用底图。' : '';
+        draw();
+      }
+    }
     const target = computed(
       () =>
         data.value?.targets.find((t) => t.id === selected.value) ||
@@ -323,12 +364,10 @@ createApp({
             (a) => a.position_id === point.value?.id,
           ),
           color = t.stale ? "#87939e" : evaluation?.color || "#87939e";
-        const yaw=deviceData.value?.devices.find(d=>d.id===t.id)?.state?.transform?.yaw_deg;
-        const heading=Number.isFinite(yaw)?yaw:0;
         const marker = L.marker(displayPoint(t.lat, t.lon), {
           icon: L.divIcon({
             className: "",
-            html: `<div class="drone-icon ${queryHighlights.value.has('http://counteruav.org/counterUav#'+t.id) ? 'query-match' : ''} ${t.id === target.value?.id ? "selected-marker" : ""}" style="--marker:${color};--heading:${heading}deg"><img src="${icons.uav}" alt=""></div>`,
+            html: `<div class="drone-icon ${queryHighlights.value.has('http://counteruav.org/counterUav#'+t.id) ? 'query-match' : ''} ${t.id === target.value?.id ? "selected-marker" : ""}" style="--marker:${color}"><img src="${icons.uav}" alt=""></div>`,
             iconSize: [44, 44],
             iconAnchor: [22, 22],
           }),
@@ -359,7 +398,8 @@ createApp({
       }
       pathLayer?.clearLayers();
       if (showTrails.value) {
-        for (const [i, t] of data.value.targets.entries()) {
+        for (const t of data.value.targets) {
+          const active = t.id === target.value?.id;
           const points =
             mode.value === "replay"
               ? t.id === historyTarget.value
@@ -367,22 +407,24 @@ createApp({
                 : []
               : trails.get(t.id) || [];
           for (const segment of trailSegments(
-            points,
+            points.slice(active ? -45 : -16),
             t.timestamp,
             Math.max(10, (data.value.stale_seconds || 30) * 2),
           )) {
             const coords = segment.map((p) => displayPoint(p.lat, p.lon));
-            const active = t.id === target.value?.id;
-            if (active) L.polyline(coords, {
-              color: '#061421', weight: 8, opacity: .8, interactive: false,
-            }).addTo(pathLayer);
             L.polyline(coords, {
-              color: active ? '#54d9ff' : ['#338ab8', '#7766ba', '#b28352'][i % 3],
-              weight: active ? 4 : 2,
-              opacity: active ? .95 : .46,
+              color: active ? '#6cddf4' : '#77a7c0',
+              weight: active ? 2.5 : 1.25,
+              opacity: active ? .95 : .34,
+              lineCap: 'round', lineJoin: 'round',
             })
               .addTo(pathLayer)
               .bindTooltip(tooltip(`${t.name} · 已观测轨迹`));
+            if (active) segment.filter((_, index) => index % 8 === 0).forEach(p =>
+              L.circleMarker(displayPoint(p.lat, p.lon), {
+                radius: 2.3, color: '#6cddf4', fillColor: '#0a263b',
+                fillOpacity: 1, weight: 1, interactive: false,
+              }).addTo(pathLayer));
           }
         }
       }
@@ -648,43 +690,29 @@ createApp({
       pathLayer = L.layerGroup().addTo(map);
       layers = L.layerGroup().addTo(map);
       L.control.zoom({ position: "bottomright" }).addTo(map);
-      const osmLayer=L.tileLayer(
-        import.meta.env.VITE_TILE_URL ||
-          "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        {
-          maxZoom: 19,
-          attribution:
-            import.meta.env.VITE_TILE_ATTRIBUTION ||
-            "&copy; OpenStreetMap contributors",
-        },
-      )
-        .addTo(map)
-        .on(
-          "tileerror",
-          () => (mapMessage.value = "底图暂不可用，目标和阵地仍可显示。"),
-        );
+      const basemap = darkBasemapConfig(import.meta.env.VITE_ARCGIS_TOKEN);
+      fallbackLayer = L.tileLayer(import.meta.env.VITE_TILE_URL ||
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom:19, className:'fallback-tiles',
+        attribution:import.meta.env.VITE_TILE_ATTRIBUTION || '&copy; OpenStreetMap contributors',
+      });
+      const darkBase = L.tileLayer(basemap.base, {maxZoom:19, maxNativeZoom:basemap.reference ? 16 : 19, attribution:ESRI_ATTRIBUTION})
+        .on('tileerror', () => {
+          if (++tileErrors === 3 && mapStyle.value === 'dark') {
+            darkLayers.forEach(layer => map.removeLayer(layer));
+            fallbackLayer.addTo(map); basemapName.value = '备用标准底图';
+            mapMessage.value = 'ArcGIS 底图暂不可用，已切换备用底图；业务对象仍可显示。';
+          }
+        });
+      darkLayers = [darkBase];
+      if (basemap.reference) darkLayers.push(L.tileLayer(basemap.reference, {maxZoom:19, maxNativeZoom:16, attribution:ESRI_ATTRIBUTION}));
+      darkLayers.forEach(layer => layer.addTo(map));
       try {
         const config=await request('/api/map/config');
-        if (config.enabled) {
-          const center=map.getCenter();
-          satelliteActive.value=true;
-          map.setView(displayPoint(center.lat,center.lng),map.getZoom(),{animate:false});
-          try {
-            removeSatellite=await attachAmapSatellite(map,config.key);
-            osmLayer.remove();
-            document.getElementById('map')?.classList.add('satellite-overlay');
-            mapMessage.value='';
-            draw();
-          } catch (cause) {
-            satelliteActive.value=false;
-            map.setView([center.lat,center.lng],map.getZoom(),{animate:false});
-            mapMessage.value=`卫星图加载失败，已使用标准底图：${cause.message}`;
-          }
-        } else {
-          mapMessage.value='高德卫星图待配置 JS API key 与安全码；当前显示标准底图。';
-        }
+        satelliteAvailable.value = !!config.enabled;
+        satelliteKey = config.enabled ? config.key : '';
       } catch {
-        mapMessage.value='卫星图配置暂不可用，当前显示标准底图。';
+        satelliteAvailable.value = false;
       }
       try {
         const [o, ttl] = await Promise.all([
@@ -715,6 +743,10 @@ createApp({
       viewMode,
       icons,
       satelliteActive,
+      satelliteAvailable,
+      mapStyle,
+      basemapName,
+      switchBasemap,
       deviceData,deviceError,deviceReadAt,selectedDeviceId,openDevices,locateDevice,
       changeView,
       locateAgentCandidate,

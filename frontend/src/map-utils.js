@@ -18,17 +18,22 @@ export function mergeTrail(previous, incoming, limit = 300) {
     .slice(-limit)
     .map(([, p]) => p);
 }
-export function trailSegments(points, cutoff, maxGapSeconds) {
+function metersBetween(a, b) {
+  const latitude = (a.lat + b.lat) * Math.PI / 360;
+  const north = (b.lat - a.lat) * 111_195;
+  const east = (b.lon - a.lon) * 111_195 * Math.cos(latitude);
+  return Math.hypot(north, east);
+}
+export function trailSegments(points, cutoff, maxGapSeconds, maxSpeedMps = 120) {
   const end = Date.parse(cutoff);
   const segments = [];
   let current = [];
   for (const p of mergeTrail([], points)) {
     if (Date.parse(p.timestamp) > end) continue;
-    if (
-      current.length &&
-      Date.parse(p.timestamp) - Date.parse(current.at(-1).timestamp) >
-        maxGapSeconds * 1000
-    ) {
+    const previous = current.at(-1);
+    const seconds = previous && (Date.parse(p.timestamp) - Date.parse(previous.timestamp)) / 1000;
+    if (previous && (seconds > maxGapSeconds ||
+      metersBetween(previous, p) / seconds > maxSpeedMps)) {
       if (current.length > 1) segments.push(current);
       current = [];
     }
