@@ -39,11 +39,11 @@ compose() {
   docker compose --project-name airontology --project-directory "$RELEASE" \
     --env-file "$ENV_FILE" --env-file "$RELEASE/images.env" -f "$RELEASE/compose.ecs.yaml" "$@"
 }
-if ! compose up -d --no-deps --force-recreate --wait --wait-timeout 180 app || \
+if ! compose up -d --no-deps --force-recreate --wait --wait-timeout 600 app || \
    ! compose exec -T app python -c 'import json,urllib.request; d=json.load(urllib.request.urlopen("http://127.0.0.1:8000/api/agent/questions")); assert d["llm_configured"] is True' </dev/null; then
   cp -p "$BACKUP" "$ENV_FILE"
   chmod 600 "$ENV_FILE"
-  compose up -d --no-deps --force-recreate --wait --wait-timeout 180 app || true
+  compose up -d --no-deps --force-recreate --wait --wait-timeout 600 app || true
   echo 'DeepSeek 配置验证失败，已尝试恢复原配置'
   exit 1
 fi
