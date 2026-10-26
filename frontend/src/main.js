@@ -16,9 +16,13 @@ import LearningWorkbench from "./learning.js";
 import AgentPanel from "./agent-panel.js";
 import EvidenceWorkbench from "./evidence.js";
 import DeviceWorkbench from "./devices.js";
-// 自绘四旋翼俯视轮廓：前向相机、机臂、四组电机与螺旋桨，避免外部图标授权依赖。
-const droneSvg = `<svg viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path stroke-width="3.2" d="M19 20 9 10m20 10L39 10M19 29 9 39m20-10 10 10"/><path stroke-width="2" d="M4 7h12M7 4v12M32 7h12m-3-3v12M4 41h12m-9-9v12m25-3h12m-3-9v12"/><circle cx="10" cy="10" r="3.4" stroke-width="2.4"/><circle cx="38" cy="10" r="3.4" stroke-width="2.4"/><circle cx="10" cy="38" r="3.4" stroke-width="2.4"/><circle cx="38" cy="38" r="3.4" stroke-width="2.4"/><path d="M19 18h10l3 7-4 9h-8l-4-9z" fill="currentColor" stroke="none"/><path d="M20 17 24 11l4 6m-6 13h4" stroke-width="2.2"/></g></svg>`;
-const positionSvg = `<svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round"><path d="M5 27h22M8 27V15l8-6 8 6v12M13 27v-7h6v7M16 9V3h9l-3 3 3 3h-9"/></g></svg>`;
+// 用户提供的四类业务图标统一存放在 public/icons，业务关系和颜色仍由数据决定。
+const icons = Object.freeze({
+  uav: "/icons/uav.png",
+  position: "/icons/position.png",
+  radar: "/icons/radar.png",
+  jammer: "/icons/jammer.png",
+});
 
 createApp({
   components: { LearningWorkbench, AgentPanel, EvidenceWorkbench, DeviceWorkbench },
@@ -254,7 +258,7 @@ createApp({
         const marker = L.marker(displayPoint(p.lat, p.lon), {
           icon: L.divIcon({
             className: "",
-            html: `<div class="position-icon ${queryHighlights.value.has('http://counteruav.org/counterUav#'+p.id) ? 'query-match' : ''} ${p.id === point.value?.id ? "selected-marker" : ""}">${positionSvg}</div>`,
+            html: `<div class="position-icon ${queryHighlights.value.has('http://counteruav.org/counterUav#'+p.id) ? 'query-match' : ''} ${p.id === point.value?.id ? "selected-marker" : ""}"><img src="${icons.position}" alt=""></div>`,
             iconSize: [34, 34],
             iconAnchor: [17, 17],
           }),
@@ -270,9 +274,9 @@ createApp({
       if(mode.value==='live') for(const d of deviceData.value?.devices||[]){
         if(d.kind==='uav'||!d.state?.transform)continue;
         const p=d.state.transform;
-        const icon=d.kind==='radar'?'<svg viewBox="0 0 32 32"><path d="M7 6a14 14 0 0 0 19 19L7 6M9 23l-4 6h22M16 16l9-11"/></svg>':'<svg viewBox="0 0 32 32"><path d="M19 3L7 18h9l-3 11 13-17h-9z"/></svg>';
+        const icon=icons[d.kind==='radar'?'radar':'jammer'];
         const stale=d.stale||!d.in_latest_frame||!!deviceError.value;
-        const marker=L.marker(displayPoint(p.latitude_deg,p.longitude_deg),{opacity:stale ? 0.5 : 1,icon:L.divIcon({className:'',html:'<div class="equipment-icon '+d.kind+'">'+icon+'</div>',iconSize:[32,32],iconAnchor:[16,16]})}).addTo(layers);
+        const marker=L.marker(displayPoint(p.latitude_deg,p.longitude_deg),{opacity:stale ? 0.5 : 1,icon:L.divIcon({className:'',html:`<div class="equipment-icon ${d.kind}"><img src="${icon}" alt=""></div>`,iconSize:[36,36],iconAnchor:[18,18]})}).addTo(layers);
         marker.bindTooltip(tooltip(d.kind_label+' · '+d.name+' · 模拟数据 · '+d.status_label),{direction:'top'});
         marker.on('click',()=>openDevices(d.id));
       }
@@ -307,9 +311,9 @@ createApp({
         const marker = L.marker(displayPoint(t.lat, t.lon), {
           icon: L.divIcon({
             className: "",
-            html: `<div class="drone-icon ${queryHighlights.value.has('http://counteruav.org/counterUav#'+t.id) ? 'query-match' : ''} ${t.id === target.value?.id ? "selected-marker" : ""}" style="--marker:${color};--heading:${heading}deg">${droneSvg}</div>`,
-            iconSize: [38, 38],
-            iconAnchor: [19, 19],
+            html: `<div class="drone-icon ${queryHighlights.value.has('http://counteruav.org/counterUav#'+t.id) ? 'query-match' : ''} ${t.id === target.value?.id ? "selected-marker" : ""}" style="--marker:${color};--heading:${heading}deg"><img src="${icons.uav}" alt=""></div>`,
+            iconSize: [44, 44],
+            iconAnchor: [22, 22],
           }),
         }).addTo(layers);
         marker.bindTooltip(tooltip(`无人机 · ${t.name}${t.stale ? ' · 数据过期' : ''}`), {
@@ -686,7 +690,7 @@ createApp({
     });
     return {
       viewMode,
-      droneSvg,
+      icons,
       satelliteActive,
       deviceData,deviceError,deviceReadAt,selectedDeviceId,openDevices,locateDevice,
       changeView,

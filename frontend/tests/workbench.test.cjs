@@ -202,8 +202,11 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
   try {
     win.eval(bundle.outputFiles[0].text);
     await until(() => doc.querySelectorAll(".drone-icon").length === 3);
+    assert.ok([...doc.querySelectorAll('.drone-icon img')].every(img=>img.getAttribute('src')==='/icons/uav.png'));
     assert.equal(doc.querySelectorAll('.screen-objects .rail-target').length,3);
     assert.equal(doc.querySelectorAll('.screen-objects .rail-group').length,2);
+    assert.equal(doc.querySelector('.rail-position-symbol img').getAttribute('src'),'/icons/position.png');
+    assert.equal(doc.querySelector('.rail-aircraft img').getAttribute('src'),'/icons/uav.png');
     assert.ok(doc.querySelector('.screen-insights').textContent.includes('模拟 MQTT'));
     assert.ok(doc.querySelector('.screen-insights').textContent.includes('无人机不隶属于阵地'));
     assert.equal(doc.querySelector('.screen-objects .rail-group .rail-target'),null);
@@ -213,6 +216,7 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     doc.querySelectorAll('.screen-objects .rail-target')[0].click();
     await until(() => doc.querySelector('.focus-card h3')?.textContent === '无人机001');
     assert.equal(doc.querySelectorAll(".position-icon").length, 2);
+    assert.ok([...doc.querySelectorAll('.position-icon img')].every(img=>img.getAttribute('src')==='/icons/position.png'));
     assert.equal(doc.querySelectorAll(".ranking-panel tbody tr").length, 3);
     const selector = doc.querySelector('[aria-label="选择阵地"]');
     selector.value = "pos002";
@@ -342,6 +346,8 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     assert.equal(evidenceCalls[0].headers['Content-Type'],'application/json');
     assert.equal(JSON.parse(evidenceCalls[0].body).data_mode,'simulated');
     await until(()=>doc.querySelectorAll('.equipment-icon').length===2);
+    assert.equal(doc.querySelector('.equipment-icon.radar img').getAttribute('src'),'/icons/radar.png');
+    assert.equal(doc.querySelector('.equipment-icon.jammer img').getAttribute('src'),'/icons/jammer.png');
     button('设备与阵地关系').click();
     await until(()=>doc.querySelector('.device-detail')?.textContent.includes('雷达001'));
     assert.ok(doc.querySelector('.device-detail').textContent.includes('未提供。初始配置不能证明当前工作正常'));

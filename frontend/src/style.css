@@ -601,20 +601,20 @@ footer span:last-child {
   font-size: 25px;
 }
 .drone-icon {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  border: 3px solid white;
-  background: var(--marker);
+  border: 3px solid var(--marker);
+  background: #10263c;
   color: white;
   display: grid;
   place-items: center;
   font-size: 29px;
   box-shadow: 0 0 0 6px color-mix(in srgb, var(--marker), transparent 85%);
 }
-.drone-icon svg {transform:rotate(var(--heading,0deg));filter:drop-shadow(0 1px 2px #06152188)}
-.rail-aircraft svg {width:23px;height:23px;vertical-align:middle}
-.focus-symbol svg {width:34px;height:34px;vertical-align:middle}
+.drone-icon img {width:44px;height:44px;max-width:none;transform:rotate(var(--heading,0deg));filter:drop-shadow(0 1px 2px #06152188)}
+.rail-aircraft img {width:31px;height:31px;vertical-align:middle}
+.focus-symbol img {width:46px;height:46px;vertical-align:middle}
 .map-label {
   border: 0 !important;
   border-radius: 5px !important;
@@ -1061,8 +1061,7 @@ td small {
   }
 }
 
-.position-icon svg,
-.drone-icon svg {
+.position-icon img {
   width: 30px;
   height: 30px;
 }
@@ -1192,10 +1191,9 @@ td small {
 .evidence-editor select {margin:12px}
 
 /* Four business objects: radar / jammer are distinct from UAV and position. */
-.equipment-icon {width:32px;height:32px;border:2px solid #fff;box-shadow:0 1px 6px #0008;display:flex;align-items:center;justify-content:center;background:#087f8c;color:white;border-radius:6px}
-.equipment-icon svg {width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.equipment-icon.jammer {background:#8547b5;transform:rotate(45deg);border-radius:3px}
-.equipment-icon.jammer svg {transform:rotate(-45deg)}
+.equipment-icon {width:36px;height:36px;border:2px solid #fff;box-shadow:0 1px 6px #0008;display:flex;align-items:center;justify-content:center;background:#10283f;border-radius:6px}
+.equipment-icon img {width:32px;height:32px;max-width:none}
+.equipment-icon.jammer {background:#20253e}
 .devices-panel {padding:24px;margin:24px 0;scroll-margin-top:16px}
 .devices-panel>p {line-height:1.7;color:#596c7d}.devices-toolbar {display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:16px 0}
 .devices-sites {display:flex;flex-wrap:wrap;gap:12px}.devices-sites article {flex:1;min-width:220px;padding:14px;border:1px solid #cbd9e2;border-radius:8px;background:#f5f9fc}
@@ -1236,15 +1234,17 @@ td small {
 .rail-position:hover,.rail-target:hover {background:#153a56;border-color:#275a7d;color:white}
 .rail-position.active,.rail-target.active {background:#0b4466;border-color:#30a8dc;color:#fff}
 .rail-position b {font-size:13px;flex:1}.rail-position small {font-size:10px;color:#8cafc7}
-.rail-position-symbol {display:grid;place-items:center;width:26px;height:26px;border-radius:4px;background:#196b87;color:#7de1e9;font-size:22px}
+.rail-position-symbol {display:grid;place-items:center;width:28px;height:28px;border-radius:4px;background:#102b43}
+.rail-position-symbol img {width:27px;height:27px}
 .rail-equipment {display:flex;gap:8px;align-items:center;padding:5px 8px 5px 43px;color:#b9d4e5;font-size:12px}
-.rail-equipment span {color:#46c8be;font-size:17px}.rail-equipment span.jammer {color:#bf8af6}
+.rail-equipment span {display:grid;place-items:center;width:22px;height:22px;flex:none}
+.rail-equipment img {width:24px;height:24px}
 .rail-equipment small {margin-left:auto;font-size:9px;color:#83a3b9;text-align:right;max-width:96px}
 .rail-targets {padding:10px;min-height:160px}
 .rail-targets h3 {display:flex;justify-content:space-between;margin:0 8px 9px;font-size:13px;color:#9ddcf5}
 .rail-targets h3 span {color:#a3bacc}
 .rail-target {padding:7px 9px}.rail-target.stale {opacity:.65}
-.rail-aircraft {color:#65c7ec;font-size:19px;line-height:1}
+.rail-aircraft {display:grid;place-items:center;width:31px;height:31px;flex:none}
 .rail-target-name {font-size:12px;flex:1}.rail-target-name small {display:block;color:#8faec4;font-size:10px;margin-top:3px}
 .rail-level {width:7px;height:7px;border-radius:50%;box-shadow:0 0 9px currentColor}
 .screen .situation-grid {grid-column:2;grid-row:2;display:block;min-width:0;min-height:0;margin:0}
@@ -1268,7 +1268,7 @@ td small {
 .screen .range-label {background:#09233bdc;color:#c9edff;border-color:#5083a0}
 .screen .map-label,.screen .distance-label {background:#0c293bea!important;color:#e5f6ff!important;border:1px solid #42728e!important;box-shadow:0 3px 9px #0008!important}
 .screen .position-icon {background:#117597;border-color:#a0e6ef;box-shadow:0 0 18px #00b9d2a0}
-.screen .drone-icon {border-color:#f1faff;box-shadow:0 0 0 5px color-mix(in srgb,var(--marker),transparent 66%),0 0 20px var(--marker)}
+.screen .drone-icon {border-color:var(--marker);box-shadow:0 0 0 5px color-mix(in srgb,var(--marker),transparent 66%),0 0 20px var(--marker)}
 .screen .equipment-icon {border-color:#a5dbed}
 .screen .replay-bar {grid-row:3;grid-column:1/-1;display:flex;align-items:center;min-height:0;margin:0;padding:8px 17px;background:#0c2237;border-color:#27506c;color:#d2e9f8;flex-wrap:nowrap;white-space:nowrap;overflow:auto}
 .screen .replay-bar button {background:#123751;border-color:#35607b;color:#c7e6fa}
@@ -1280,7 +1280,7 @@ td small {
 .observation-track i:last-child {height:12px;width:12px;background:#72e6ff}
 .insight-scroll {padding:13px;overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:13px}
 .focus-card {border:1px solid var(--focus-color);border-radius:7px;background:color-mix(in srgb,var(--focus-color),#0c1c2d 87%);padding:14px;color:#e9f6ff}
-.focus-top {display:flex;gap:10px;align-items:center}.focus-symbol {font-size:33px;color:var(--focus-color)}
+.focus-top {display:flex;gap:10px;align-items:center}.focus-symbol {display:grid;place-items:center;width:46px;height:46px;flex:none}
 .focus-top h3 {margin:0;color:var(--focus-color);font-size:17px}.focus-top small {font-size:10px;color:#bed4e1}
 .focus-card>p {color:#a7c1d2;font-size:11px;margin:16px 0 4px}
 .focus-card>strong {font-size:35px;line-height:1.15;font-variant-numeric:tabular-nums}.focus-card>strong small {font-size:14px;font-weight:400}
