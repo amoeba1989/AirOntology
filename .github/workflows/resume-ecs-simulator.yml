@@ -1,0 +1,52 @@
+name: Resume ECS simulator
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: airontology-ecs-production
+  cancel-in-progress: false
+jobs:
+  resume:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Install SSH password helper
+        run: |
+          if ! command -v sshpass >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y sshpass
+          fi
+      - name: Resume demo observations
+        env:
+          ECS_HOST: ${{ secrets.ECS_HOST }}
+          ECS_USER: ${{ secrets.ECS_USER }}
+          ECS_SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
+          ECS_PASSWORD: ${{ secrets.ECS_PASSWORD }}
+          ECS_KNOWN_HOSTS: ${{ secrets.ECS_KNOWN_HOSTS }}
+          ECS_PORT: ${{ vars.ECS_PORT }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          DIR=$(mktemp -d)
+          trap 'rm -rf "$DIR"' EXIT
+          printf '%s\n' "$ECS_KNOWN_HOSTS" > "$DIR/known_hosts"
+          OPT=(-o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$DIR/known_hosts" -o ConnectTimeout=20)
+          AUTH=()
+          if [[ -n "${ECS_SSH_KEY:-}" ]]; then
+            printf '%s\n' "$ECS_SSH_KEY" > "$DIR/key"
+            chmod 600 "$DIR/key"
+            OPT+=(-i "$DIR/key" -o BatchMode=yes -o IdentitiesOnly=yes)
+          else
+            export SSHPASS="$ECS_PASSWORD"
+            AUTH=(sshpass -e)
+            OPT+=(-o BatchMode=no -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive -o NumberOfPasswordPrompts=1)
+          fi
+          "${AUTH[@]}" ssh "${OPT[@]}" -p "${ECS_PORT:-22}" "$ECS_USER@$ECS_HOST" 'bash -s' <<'REMOTE'
+          set -Eeuo pipefail
+          [[ "$(docker inspect -f '{{.State.Health.Status}}' airontology-app-1)" == healthy ]]
+          [[ "$(docker inspect -f '{{.State.Health.Status}}' airontology-fuseki-1)" == healthy ]]
+          docker start airontology-simulator-1
+          echo 'Simulator running; app and Fuseki were healthy before resume'
+          REMOTE
