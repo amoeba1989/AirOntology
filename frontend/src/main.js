@@ -11,22 +11,24 @@ import "leaflet/dist/leaflet.css";
 import "./style.css";
 import template from "./template.js";
 import { mergeTrail, trailSegments } from "./map-utils.js";
+import { wgs84ToGcj02, attachAmapSatellite } from "./amap-basemap.js";
 import LearningWorkbench from "./learning.js";
 import AgentPanel from "./agent-panel.js";
 import EvidenceWorkbench from "./evidence.js";
 import DeviceWorkbench from "./devices.js";
-const droneSvg = `<svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="7" cy="7" r="4"/><circle cx="25" cy="7" r="4"/><circle cx="7" cy="25" r="4"/><circle cx="25" cy="25" r="4"/><path d="M10 10l12 12M22 10L10 22"/><rect x="12" y="11" width="8" height="10" rx="3" fill="currentColor"/></g></svg>`;
+// 自绘四旋翼俯视轮廓：前向相机、机臂、四组电机与螺旋桨，避免外部图标授权依赖。
+const droneSvg = `<svg viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path stroke-width="3.2" d="M19 20 9 10m20 10L39 10M19 29 9 39m20-10 10 10"/><path stroke-width="2" d="M4 7h12M7 4v12M32 7h12m-3-3v12M4 41h12m-9-9v12m25-3h12m-3-9v12"/><circle cx="10" cy="10" r="3.4" stroke-width="2.4"/><circle cx="38" cy="10" r="3.4" stroke-width="2.4"/><circle cx="10" cy="38" r="3.4" stroke-width="2.4"/><circle cx="38" cy="38" r="3.4" stroke-width="2.4"/><path d="M19 18h10l3 7-4 9h-8l-4-9z" fill="currentColor" stroke="none"/><path d="M20 17 24 11l4 6m-6 13h4" stroke-width="2.2"/></g></svg>`;
 const positionSvg = `<svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round"><path d="M5 27h22M8 27V15l8-6 8 6v12M13 27v-7h6v7M16 9V3h9l-3 3 3 3h-9"/></g></svg>`;
 
 createApp({
   components: { LearningWorkbench, AgentPanel, EvidenceWorkbench, DeviceWorkbench },
   setup() {
-    const deviceData=ref(null),deviceError=ref(''),selectedDeviceId=ref('');
+    const deviceData=ref(null),deviceError=ref(''),deviceReadAt=ref(''),selectedDeviceId=ref('');
     let devicePolling=false,deviceTimer;
     async function pollDevices(){
       if(devicePolling||closed)return;devicePolling=true;
-      try{const value=await request('/api/devices');if(!closed){deviceData.value=value;deviceError.value='';draw();}}
-      catch(e){deviceError.value=e.message;}finally{devicePolling=false;}
+      try{const value=await request('/api/devices');if(!closed){deviceData.value=value;deviceReadAt.value=new Date().toISOString();deviceError.value='';draw();}}
+      catch(e){deviceError.value=e.name==='TimeoutError'?'设备接口响应超时':e.message;}finally{devicePolling=false;}
     }
     async function openDevices(id){
       if(typeof id==='string')selectedDeviceId.value=id;
@@ -36,7 +38,7 @@ createApp({
     async function locateDevice(d){
       if(mode.value!=='live')await live();
       if(!d.state?.transform)return;
-      map.setView([d.state.transform.latitude_deg,d.state.transform.longitude_deg],17,{animate:false});
+      map.setView(displayPoint(d.state.transform.latitude_deg,d.state.transform.longitude_deg),17,{animate:false});
       document.getElementById('map')?.scrollIntoView?.({block:'center'});
     }
     const data = ref(null),
@@ -73,7 +75,7 @@ createApp({
       await chooseTarget(current.id);
       choosePosition(snapshot.position.id);
       highlightQuery([{target:{value:current.uri || 'http://counteruav.org/counterUav#'+current.id}}]);
-      map?.setView([current.lat,current.lon], 17, {animate:false});
+      map?.setView(displayPoint(current.lat,current.lon), 17, {animate:false});
       notice('已定位当前可用位置；回答依据固定为 '+formatTime(snapshot.at));
     }
     const queryHighlights = ref(new Set());
@@ -108,12 +110,15 @@ createApp({
     let map,
       layers,
       pathLayer,
+      removeSatellite,
+      satelliteActive = ref(false),
       timer,
       playTimer,
       closed = false,
       polling = false,
       initialized = false,
       snapshotToken = 0;
+    const displayPoint=(lat,lon)=>satelliteActive.value?wgs84ToGcj02(lat,lon):[lat,lon];
     const target = computed(
       () =>
         data.value?.targets.find((t) => t.id === selected.value) ||
@@ -164,8 +169,8 @@ createApp({
       clearEvidencePoint();
       const label=document.createElement('span');
       label.textContent='原始观测（非确认无人机） · '+o.id+' · '+(({simulated:'模拟数据',operational:'业务接入声明（未验证）'})[o.data_mode]||'来源待核实')+' · '+o.observed_at+' · '+(o.fresh?'时间有效':'已过期');
-      L.circleMarker([o.lat,o.lon],{radius:10,color:'#c084fc',weight:3,fillOpacity:.25}).bindTooltip(label).addTo(evidenceLayer);
-      map.setView([o.lat,o.lon],16,{animate:false});
+      L.circleMarker(displayPoint(o.lat,o.lon),{radius:10,color:'#c084fc',weight:3,fillOpacity:.25}).bindTooltip(label).addTo(evidenceLayer);
+      map.setView(displayPoint(o.lat,o.lon),16,{animate:false});
       document.getElementById('map')?.scrollIntoView?.({block:'center'});
       notice('已定位原始观测；不表示同一目标或确认无人机。');
     }
@@ -246,7 +251,7 @@ createApp({
       if (!map || !data.value) return;
       layers.clearLayers();
       for (const p of data.value.positions) {
-        const marker = L.marker([p.lat, p.lon], {
+        const marker = L.marker(displayPoint(p.lat, p.lon), {
           icon: L.divIcon({
             className: "",
             html: `<div class="position-icon ${queryHighlights.value.has('http://counteruav.org/counterUav#'+p.id) ? 'query-match' : ''} ${p.id === point.value?.id ? "selected-marker" : ""}">${positionSvg}</div>`,
@@ -267,7 +272,7 @@ createApp({
         const p=d.state.transform;
         const icon=d.kind==='radar'?'<svg viewBox="0 0 32 32"><path d="M7 6a14 14 0 0 0 19 19L7 6M9 23l-4 6h22M16 16l9-11"/></svg>':'<svg viewBox="0 0 32 32"><path d="M19 3L7 18h9l-3 11 13-17h-9z"/></svg>';
         const stale=d.stale||!d.in_latest_frame||!!deviceError.value;
-        const marker=L.marker([p.latitude_deg,p.longitude_deg],{opacity:stale ? 0.5 : 1,icon:L.divIcon({className:'',html:'<div class="equipment-icon '+d.kind+'">'+icon+'</div>',iconSize:[32,32],iconAnchor:[16,16]})}).addTo(layers);
+        const marker=L.marker(displayPoint(p.latitude_deg,p.longitude_deg),{opacity:stale ? 0.5 : 1,icon:L.divIcon({className:'',html:'<div class="equipment-icon '+d.kind+'">'+icon+'</div>',iconSize:[32,32],iconAnchor:[16,16]})}).addTo(layers);
         marker.bindTooltip(tooltip(d.kind_label+' · '+d.name+' · 模拟数据 · '+d.status_label),{direction:'top'});
         marker.on('click',()=>openDevices(d.id));
       }
@@ -275,14 +280,14 @@ createApp({
       if (point.value && showRanges.value)
         [...thresholds].reverse().forEach((radius, i) => {
           const color = ["#2586bd", "#da850e", "#d83e46"][i];
-          const circle = L.circle([point.value.lat, point.value.lon], {
+          const circle = L.circle(displayPoint(point.value.lat, point.value.lon), {
             radius,
             color,
             weight: i === 2 ? 4 : 3,
             dashArray: ["10 6", "5 5", null][i],
             fillOpacity: viewMode.value === 'screen' ? 0.09 : 0.055,
           }).addTo(layers);
-          L.marker([circle.getBounds().getNorth(), point.value.lon], {
+          L.marker([circle.getBounds().getNorth(), displayPoint(point.value.lat,point.value.lon)[1]], {
             interactive: false,
             icon: L.divIcon({
               className: "range-label",
@@ -297,10 +302,12 @@ createApp({
             (a) => a.position_id === point.value?.id,
           ),
           color = t.stale ? "#87939e" : evaluation?.color || "#87939e";
-        const marker = L.marker([t.lat, t.lon], {
+        const yaw=deviceData.value?.devices.find(d=>d.id===t.id)?.state?.transform?.yaw_deg;
+        const heading=Number.isFinite(yaw)?yaw:0;
+        const marker = L.marker(displayPoint(t.lat, t.lon), {
           icon: L.divIcon({
             className: "",
-            html: `<div class="drone-icon ${queryHighlights.value.has('http://counteruav.org/counterUav#'+t.id) ? 'query-match' : ''} ${t.id === target.value?.id ? "selected-marker" : ""}" style="--marker:${color}">${droneSvg}</div>`,
+            html: `<div class="drone-icon ${queryHighlights.value.has('http://counteruav.org/counterUav#'+t.id) ? 'query-match' : ''} ${t.id === target.value?.id ? "selected-marker" : ""}" style="--marker:${color};--heading:${heading}deg">${droneSvg}</div>`,
             iconSize: [38, 38],
             iconAnchor: [19, 19],
           }),
@@ -317,8 +324,8 @@ createApp({
         const a = assessment.value;
         L.polyline(
           [
-            [target.value.lat, target.value.lon],
-            [a.position_lat, a.position_lon],
+            displayPoint(target.value.lat, target.value.lon),
+            displayPoint(a.position_lat, a.position_lon),
           ],
           { color: a.color, weight: 2, dashArray: "6 7" },
         )
@@ -343,7 +350,7 @@ createApp({
             t.timestamp,
             Math.max(10, (data.value.stale_seconds || 30) * 2),
           )) {
-            const coords = segment.map((p) => [p.lat, p.lon]);
+            const coords = segment.map((p) => displayPoint(p.lat, p.lon));
             const active = t.id === target.value?.id;
             if (active) L.polyline(coords, {
               color: '#061421', weight: 8, opacity: .8, interactive: false,
@@ -363,7 +370,7 @@ createApp({
         locate();
       }
       if (follow.value && target.value)
-        map.panTo([target.value.lat, target.value.lon], {
+        map.panTo(displayPoint(target.value.lat, target.value.lon), {
           animate: true,
           duration: 0.3,
         });
@@ -372,14 +379,14 @@ createApp({
       const coords = [
         ...(data.value?.positions || []),
         ...(data.value?.targets || []),
-      ].map((p) => [p.lat, p.lon]);
+      ].map((p) => displayPoint(p.lat, p.lon));
       const bounds = L.latLngBounds(coords);
       if (point.value && showRanges.value) {
         const radius = Math.max(
           ...(assessment.value?.thresholds || data.value.thresholds),
         );
         bounds.extend(
-          L.latLng(point.value.lat, point.value.lon).toBounds(radius * 2),
+          L.latLng(...displayPoint(point.value.lat, point.value.lon)).toBounds(radius * 2),
         );
       }
       if (bounds.isValid())
@@ -615,7 +622,7 @@ createApp({
       pathLayer = L.layerGroup().addTo(map);
       layers = L.layerGroup().addTo(map);
       L.control.zoom({ position: "bottomright" }).addTo(map);
-      L.tileLayer(
+      const osmLayer=L.tileLayer(
         import.meta.env.VITE_TILE_URL ||
           "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         {
@@ -631,6 +638,29 @@ createApp({
           () => (mapMessage.value = "底图暂不可用，目标和阵地仍可显示。"),
         );
       try {
+        const config=await request('/api/map/config');
+        if (config.enabled) {
+          const center=map.getCenter();
+          satelliteActive.value=true;
+          map.setView(displayPoint(center.lat,center.lng),map.getZoom(),{animate:false});
+          try {
+            removeSatellite=await attachAmapSatellite(map,config.key);
+            osmLayer.remove();
+            document.getElementById('map')?.classList.add('satellite-overlay');
+            mapMessage.value='';
+            draw();
+          } catch (cause) {
+            satelliteActive.value=false;
+            map.setView([center.lat,center.lng],map.getZoom(),{animate:false});
+            mapMessage.value=`卫星图加载失败，已使用标准底图：${cause.message}`;
+          }
+        } else {
+          mapMessage.value='高德卫星图待配置 JS API key 与安全码；当前显示标准底图。';
+        }
+      } catch {
+        mapMessage.value='卫星图配置暂不可用，当前显示标准底图。';
+      }
+      try {
         const [o, ttl] = await Promise.all([
           request("/api/ontology"),
           request("/api/ontology/ttl", true),
@@ -642,8 +672,8 @@ createApp({
       }
       await poll();
       await pollDevices();
-      deviceTimer=setInterval(pollDevices,2000);
-      timer = setInterval(poll, 1000);
+      deviceTimer=setInterval(pollDevices,5000);
+      timer = setInterval(poll, 3000);
     });
     onUnmounted(() => {
       closed = true;
@@ -651,11 +681,14 @@ createApp({
       clearInterval(timer);
       clearInterval(deviceTimer);
       stopPlayback();
+      removeSatellite?.();
       map?.remove();
     });
     return {
       viewMode,
-      deviceData,deviceError,selectedDeviceId,openDevices,locateDevice,
+      droneSvg,
+      satelliteActive,
+      deviceData,deviceError,deviceReadAt,selectedDeviceId,openDevices,locateDevice,
       changeView,
       locateAgentCandidate,
       openLearning,

@@ -4,8 +4,10 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 import threading
+import re
+import httpx
 from fastapi import FastAPI, HTTPException, Path as PathParam, Query, Request
-from fastapi.responses import PlainTextResponse, StreamingResponse
+from fastapi.responses import PlainTextResponse, StreamingResponse, Response
 from starlette.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from rdflib import Graph, OWL, RDFS, RDF
@@ -149,6 +151,33 @@ def create_app(settings=None, store=None, enable_mqtt=True):
         status = consumer.status()
         return {'status':'ok' if fuseki and status['connected'] and not status['last_error'] else 'degraded',
                 'fuseki':fuseki, 'mqtt':status, 'version':'2.4.0'}
+
+    @app.get('/api/map/config')
+    def map_config():
+        enabled=bool(settings.amap_js_key and settings.amap_security_js_code.get_secret_value())
+        return {'enabled':enabled, 'key':settings.amap_js_key if enabled else ''}
+
+    @app.api_route('/_AMapService/{path:path}',methods=['GET','POST'])
+    async def amap_service(path:str,request:Request):
+        code=settings.amap_security_js_code.get_secret_value()
+        if not settings.amap_js_key or not code:
+            raise HTTPException(404,'高德地图尚未配置')
+        if not re.fullmatch(r'v[1-9]/[A-Za-z0-9_/-]{1,100}',path):
+            raise HTTPException(404,'无效地图服务路径')
+        if request.query_params.get('key') != settings.amap_js_key:
+            raise HTTPException(403,'地图 key 不匹配')
+        base='https://webapi.amap.com/' if path.startswith('v4/map/styles') else 'https://restapi.amap.com/'
+        params=[(k,v) for k,v in request.query_params.multi_items() if k!='jscode']+[('jscode',code)]
+        try:
+            async with httpx.AsyncClient(timeout=15,trust_env=False) as client:
+                upstream=await client.request(request.method,base+path,params=params,
+                    content=await request.body() if request.method=='POST' else None,
+                    headers={'Content-Type':request.headers.get('content-type','application/octet-stream')})
+        except httpx.HTTPError as error:
+            logging.warning('高德地图服务转发失败：%s',type(error).__name__)
+            raise HTTPException(502,'地图服务暂不可用') from error
+        return Response(content=upstream.content,status_code=upstream.status_code,
+                        media_type=upstream.headers.get('content-type','application/json'))
 
     @app.get('/api/agent/questions')
     def agent_questions():

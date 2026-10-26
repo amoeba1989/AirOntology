@@ -24,7 +24,7 @@ export default `
         <div class="rail-equipment" v-for="d in screenDevices.filter(x=>x.deployed_at===p.id&&x.kind!=='uav')" :key="d.id"><span :class="d.kind">{{d.kind==='radar'?'◎':'⌁'}}</span>{{d.name}}<small>{{d.kind==='jammer'&&d.state?.jammer ? (d.state.jammer.emitting?'上报发射':'上报未发射') : d.status_label}}</small></div>
       </section>
       <section class="rail-targets"><h3>无人机目标 <span>{{data?.targets.length||0}}</span></h3>
-        <button v-for="t in data?.targets" :key="t.id" class="rail-target" :class="{active:t.id===target?.id,stale:t.stale}" @click="chooseTarget(t.id)"><span class="rail-aircraft">✦</span><span class="rail-target-name">{{t.name}}<small>{{t.stale?'观测过期':(t.assessments.find(a=>a.position_id===point?.id)?.level_label||'待评估')}} · {{t.speed.toFixed(1)}} m/s</small></span><span class="rail-level" :style="{background:t.stale?'#748195':t.assessments.find(a=>a.position_id===point?.id)?.color||'#748195'}"></span></button>
+        <button v-for="t in data?.targets" :key="t.id" class="rail-target" :class="{active:t.id===target?.id,stale:t.stale}" @click="chooseTarget(t.id)"><span class="rail-aircraft" v-html="droneSvg"></span><span class="rail-target-name">{{t.name}}<small>{{t.stale?'观测过期':(t.assessments.find(a=>a.position_id===point?.id)?.level_label||'待评估')}} · {{t.speed.toFixed(1)}} m/s</small></span><span class="rail-level" :style="{background:t.stale?'#748195':t.assessments.find(a=>a.position_id===point?.id)?.color||'#748195'}"></span></button>
       </section>
     </aside>
     <nav class="knowledge-nav" aria-label="本体导航"><a href="#alarm-panel">告警看板</a><button @click="openLearning">本体学习工作台</button><button @click="openDevices()">设备与阵地关系</button><button @click="openEvidence">多源观测与证据</button><button @click="openKnowledge('structure')">TBox · 类与属性定义</button><button @click="openKnowledge('abox')">ABox · 实例与关系</button></nav>
@@ -48,9 +48,9 @@ export default `
     <section class="situation-grid">
       <div class="panel map-panel">
         <div class="panel-heading"><h2><span class="section-index">01</span>{{mode==='replay'?'历史态势':'实时态势'}}</h2><div><label class="follow"><input type="checkbox" v-model="follow">跟随目标</label><button @click="locate">定位全景 ↗</button></div></div>
-        <div class="map-controls"><label><input type="checkbox" v-model="showTrails" @change="draw">无人机轨迹</label><label><input type="checkbox" v-model="showRanges" @change="draw">距离分级圈</label><button @click="openDevices()">设备与关系</button><span>圆形：无人机 · 旗标：阵地 · 雷达标：雷达 · 菱形：干扰器</span></div>
-        <div class="map-wrap"><div id="map"></div><div class="map-badge">{{status}} · {{point?.name || '等待阵地'}}<span v-if="data">{{formatTime(data.at)}}</span></div><div v-if="mapMessage" class="tile-notice">{{mapMessage}}</div><div class="legend"><span><i style="background:#e45555"></i>高关注</span><span><i style="background:#ed9b32"></i>中关注</span><span><i style="background:#3899ce"></i>低关注</span><span><i style="background:#5aab87"></i>阈值外</span></div></div>
-        <div class="map-caption">WGS84 · 水平距离 / 米<span>颜色针对选中阵地；距离远近不等于综合威胁</span></div>
+        <div class="map-controls"><label><input type="checkbox" v-model="showTrails" @change="draw">无人机轨迹</label><label><input type="checkbox" v-model="showRanges" @change="draw">距离分级圈</label><button @click="openDevices()">设备与关系</button><span>四旋翼：无人机 · 旗标：阵地 · 雷达标：雷达 · 菱形：干扰器</span></div>
+        <div class="map-wrap"><div id="amap-basemap" aria-hidden="true"></div><div id="map"></div><div class="map-badge">{{status}} · {{point?.name || '等待阵地'}}<span v-if="data">{{formatTime(data.at)}}</span></div><div v-if="mapMessage" class="tile-notice">{{mapMessage}}</div><div class="legend"><span><i style="background:#e45555"></i>高关注</span><span><i style="background:#ed9b32"></i>中关注</span><span><i style="background:#3899ce"></i>低关注</span><span><i style="background:#5aab87"></i>阈值外</span></div></div>
+        <div class="map-caption">业务坐标 WGS84 · {{satelliteActive?'高德卫星底图 GCJ-02':'标准底图'}} · 水平距离 / 米<span>颜色针对选中阵地；距离远近不等于综合威胁</span></div>
       </div>
       <aside class="panel details">
         <div class="panel-heading"><h2><span class="section-index">02</span>对象详情</h2><span class="tag">实例</span></div>
@@ -67,7 +67,7 @@ export default `
       <div class="screen-rail-head"><h2>当前关注</h2><span>{{mode==='live'?'实时':'历史快照'}}</span></div>
       <div class="insight-scroll">
         <section class="focus-card" :style="{'--focus-color':target?.stale?'#899bad':assessment?.color||'#6e8da4'}" v-if="target">
-          <div class="focus-top"><span class="focus-symbol">✦</span><div><h3>{{target.name}}</h3><small>{{target.stale?'数据过期':assessment?.level_label||'等待新观测'}}</small></div></div>
+          <div class="focus-top"><span class="focus-symbol" v-html="droneSvg"></span><div><h3>{{target.name}}</h3><small>{{target.stale?'数据过期':assessment?.level_label||'等待新观测'}}</small></div></div>
           <p>与{{point?.name||'选中阵地'}}的水平距离</p><strong>{{assessment?assessment.distance.toFixed(1):'—'}}<small> 米</small></strong>
           <dl><div><dt>速度</dt><dd>{{target.speed.toFixed(1)}} m/s</dd></div><div><dt>观测时间</dt><dd>{{formatTime(target.timestamp)}}</dd></div><div v-if="mode==='live'&&selectedDevice?.state?.transform"><dt>演示高度</dt><dd>{{selectedDevice.state.transform.altitude_m?.toFixed(0)||'—'}} m</dd></div><div v-if="mode==='live'&&selectedDevice?.parameters?.demo_route_profile"><dt>合成航线</dt><dd>{{selectedDevice.parameters.demo_route_profile}}</dd></div></dl>
           <div class="focus-disclaimer">仅按距离分级，不代表黑飞或综合威胁。</div>
@@ -97,7 +97,7 @@ export default `
       <div v-else class="code-section"><div class="code-note">{{tab==='definition'?'模型定义：新增观测记录、评估记录和规则类别。':mode==='replay'?'历史快照：显示回放时间对应的观测、评估和规则，不是当前实时状态。':'最新事实：无人机通过当前评估关联观测、阵地和规则。'}}</div><pre><code>{{tab==='definition'?definition:instance||'暂无目标实例'}}</code></pre></div>
       <div class="ontology-footer"><span>对象属性连接对象，数据属性连接数值；距离和等级属于评估记录。</span><span>Python 计算 · RDF/OWL 表达 · SPARQL 查询</span></div>
     </section>
-    <p v-if="deviceError" class="alert">设备状态读取失败：{{deviceError}}；保留上次记录，请核对时间。</p>
+    <p v-if="deviceError" class="alert">设备状态读取失败：{{deviceError}}。最近成功读取：{{formatTime(deviceReadAt)}}；显示的是上次数据，请检查 MQTT、Fuseki 与模拟器状态。</p>
     <DeviceWorkbench :request="request" :data="deviceData" :selected-id="selectedDeviceId" :locate="locateDevice" :replay="mode!=='live'" />
     <LearningWorkbench :request="request" :data="data" :mode="mode" :highlight="highlightQuery" :focus-row="focusQueryRow" />
     <EvidenceWorkbench :request="request" :active="viewMode==='learning'" :locate="locateEvidence" :clear-point="clearEvidencePoint" />

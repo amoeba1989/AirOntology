@@ -27,6 +27,17 @@ def make_track(seconds=0, **values):
                  timestamp=datetime.now(timezone.utc) + timedelta(seconds=seconds), **values)
 
 
+def test_legacy_default_freshness_migration_and_custom_config(store,settings):
+    legacy=store.config.model_copy(update={'stale_seconds':5})
+    store.update(f'CLEAR GRAPH <{CONFIG}>; INSERT DATA {{ GRAPH <{CONFIG}> {{ {store.config_graph(legacy).serialize(format="nt")} }} }}')
+    store.initialize()
+    assert store.config.stale_seconds==30
+    custom=legacy.model_copy(update={'high_threshold':80})
+    store.update(f'CLEAR GRAPH <{CONFIG}>; INSERT DATA {{ GRAPH <{CONFIG}> {{ {store.config_graph(custom).serialize(format="nt")} }} }}')
+    store.initialize()
+    assert store.config.stale_seconds==5
+
+
 @pytest.fixture
 def store(settings):
     dataset = Dataset()
@@ -90,7 +101,7 @@ def test_update_rejects_old_and_duplicate_after_reinitialize(store):
 
 
 def test_api_and_stale_state(store,settings):
-    store.write_track(make_track(seconds=-10))
+    store.write_track(make_track(seconds=-40))
     with TestClient(create_app(settings,store,enable_mqtt=False)) as client:
         assert client.get('/api/health').json()['fuseki'] is True
         situation=client.get('/api/situation').json()

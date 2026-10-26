@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     position_name: str = '一号阵地'
     position_lon: float = 116.4077
     position_lat: float = 39.9045
-    stale_seconds: float = 5
+    stale_seconds: float = 30
     high_threshold: float = 100
     medium_threshold: float = 200
     low_threshold: float = 300
@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     deepseek_api_key: SecretStr = SecretStr('')
     deepseek_base_url: str = 'https://api.deepseek.com'
     deepseek_model: str = 'deepseek-flash'
+    amap_js_key: str = ''
+    amap_security_js_code: SecretStr = SecretStr('')
 
     def initial_config(self):
         from .models import Position, RuntimeConfig

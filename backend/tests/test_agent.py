@@ -49,7 +49,7 @@ def test_missing_trend_receding_stale_clock_skew_and_config_change(settings, sto
     store.write_track(track(settings,'one-observation',160,now-timedelta(seconds=1)))
     store.write_track(track(settings,'receding',120,now-timedelta(seconds=2)))
     store.write_track(track(settings,'receding',170,now-timedelta(seconds=1)))
-    store.write_track(track(settings,'stale',50,now-timedelta(seconds=20)))
+    store.write_track(track(settings,'stale',50,now-timedelta(seconds=40)))
     store.write_track(track(settings,'future',40,now+timedelta(seconds=10)))
     result = agent.build_analysis(store,settings,'attention','pos001')
     assert {c['target_id'] for c in result['candidates']} == {'one-observation','receding'}

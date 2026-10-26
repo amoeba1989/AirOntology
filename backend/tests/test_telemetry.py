@@ -41,6 +41,25 @@ def test_four_types_relationships_and_typed_states(store,settings):
     assert all(row['kind']['value'] in ('radar','jammer') for row in rows)
 
 
+def test_frame_batches_track_writes_and_device_read_does_not_wait_for_worker(store,settings,monkeypatch):
+    registry,frame,_=setup(store,settings)
+    updates=[]
+    original=store.update
+    def tracked(sparql):
+        updates.append(sparql)
+        return original(sparql)
+    monkeypatch.setattr(store,'update',tracked)
+    t.ingest(store,frame)
+    assert len(updates) <= 3  # one batch, one device graph replacement, optional prune
+    # An active simulation worker owns the Python lock; /api/devices can still
+    # read Fuseki's previous committed device graph rather than timeout on it.
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with store.lock:
+            future=pool.submit(t.view,store)
+            assert future.result(timeout=2)['frame']['run_id']=='test-run'
+
+
 def test_repeated_and_out_of_order_frames(store,settings):
     registry,frame,now=setup(store,settings)
     assert t.register(store,registry)['status']=='unchanged'

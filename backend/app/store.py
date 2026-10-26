@@ -80,6 +80,12 @@ class FusekiStore:
             rows = result['results']['bindings']
             if rows:
                 self.config = RuntimeConfig.model_validate_json(rows[0]['json']['value'])
+                # 仅升级未经修改的旧演示默认配置；保留用户自行设置的过期时间。
+                legacy_default = self.settings.initial_config().model_copy(update={'stale_seconds': 5})
+                if self.config == legacy_default:
+                    self.config = self.config.model_copy(update={'stale_seconds': 30})
+                    triples = self.config_graph(self.config).serialize(format='nt')
+                    self.update(f'CLEAR SILENT GRAPH <{CONFIG}>; INSERT DATA {{ GRAPH <{CONFIG}> {{ {triples} }} }}')
             else:
                 triples = self.config_graph(self.config).serialize(format='nt')
                 self.update(f'INSERT DATA {{ GRAPH <{CONFIG}> {{ {triples} }} }}')
@@ -111,6 +117,55 @@ WHERE {{
  OPTIONAL {{ GRAPH <{STATE}> {{ {subject} ?p ?o }} }}
 }}''')
             self.prune(uri(track.target_id))
+
+    def write_tracks(self, tracks):
+        """Batch a simulation frame into one Fuseki update and one history scan."""
+        if not tracks:
+            return
+        with self.lock:
+            positions = {p.id for p in self.config.positions}
+            if any(t.target_id in positions for t in tracks):
+                raise ValueError('目标编号不能与阵地编号相同')
+            if len({t.target_id for t in tracks}) != len(tracks):
+                raise ValueError('同一帧中的航迹编号重复')
+            updates = []
+            for track in tracks:
+                subject = uri(track.target_id).n3()
+                incoming = Literal(track.timestamp, datatype=XSD.dateTime).n3()
+                state, history = observation_graphs(track, self.config)
+                updates.append(f'''DELETE {{ GRAPH <{STATE}> {{ {subject} ?p ?o }} }}
+INSERT {{ GRAPH <{STATE}> {{ {state.serialize(format='nt')} }}
+         GRAPH <{HISTORY}> {{ {history.serialize(format='nt')} }} }}
+WHERE {{
+ FILTER NOT EXISTS {{ GRAPH <{STATE}> {{ {subject} <{CU.latestObservation}> ?known; <{CU.timestamp}> ?old }} FILTER (?old >= {incoming}) }}
+ OPTIONAL {{ GRAPH <{STATE}> {{ {subject} ?p ?o }} }}
+}}''')
+            self.update(';\n'.join(updates))
+            subjects = ' '.join(uri(t.target_id).n3() for t in tracks)
+            rows = self.query(f'''PREFIX cu: <{CU}>
+SELECT ?target ?obs WHERE {{ GRAPH <{HISTORY}> {{
+ VALUES ?target {{ {subjects} }}
+ ?obs a cu:Observation; cu:ofTarget ?target; cu:timestamp ?time
+}} }} ORDER BY ?target DESC(?time)''')['results']['bindings']
+            counts, obsolete = {}, []
+            for row in rows:
+                target = row['target']['value']
+                counts[target] = counts.get(target, 0) + 1
+                if counts[target] > self.config.history_limit:
+                    obsolete.append(URIRef(row['obs']['value']).n3())
+            if obsolete:
+                values = ' '.join(obsolete)
+                self.update(f'''PREFIX cu: <{CU}>
+DELETE {{ GRAPH <{HISTORY}> {{ ?assessment ?p ?o }} }} WHERE {{
+ VALUES ?obs {{ {values} }} GRAPH <{HISTORY}> {{ ?assessment cu:basedOnObservation ?obs; ?p ?o }}
+}};
+DELETE {{ GRAPH <{HISTORY}> {{ ?obs ?p ?o }} }} WHERE {{
+ VALUES ?obs {{ {values} }} GRAPH <{HISTORY}> {{ ?obs ?p ?o }}
+}};
+DELETE {{ GRAPH <{HISTORY}> {{ ?rule ?p ?o }} }} WHERE {{
+ GRAPH <{HISTORY}> {{ ?rule a cu:DistanceRule; ?p ?o }}
+ FILTER NOT EXISTS {{ GRAPH <{HISTORY}> {{ ?assessment cu:usedRule ?rule }} }}
+}}''')
 
     def prune(self, target):
         # 先确定待清理的不可变观测ID，再删除关联评估和观测。

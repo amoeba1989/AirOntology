@@ -236,6 +236,7 @@ def ingest(store,frame):
                 raise ValueError('仿真时间或发布时间倒退')
         configured={d['handle']:d for d in registry['devices']}
         # Validate all references before projecting any target into legacy distance evaluation.
+        tracks=[]
         for item in p.entities:
             if item.id not in configured:raise ValueError('未登记的实体句柄：'+str(item.id))
             if item.jammer and configured[item.id]['kind']!='jammer':raise ValueError('发射状态与登记设备类型不符')
@@ -259,18 +260,21 @@ def ingest(store,frame):
             deletes.append(f'{s.n3()} ?p ?o')
             if d['kind']=='uav' and item.transform and item.motion:
                 # published_at is explicit UTC added by this wall-clock demo publisher, NOT sim_time_s.
-                store.write_track(Track(target_id=d['id'],name=d['name'],lon=item.transform.longitude_deg,
+                tracks.append(Track(target_id=d['id'],name=d['name'],lon=item.transform.longitude_deg,
                     lat=item.transform.latitude_deg,speed=item.motion.speed_mps,timestamp=frame.published_at,
                     source=f'模拟态势适配 run={frame.run_id[:12]} tick={p.tick}',data_mode='simulated'))
+        store.write_tracks(tracks)
         update='; '.join(f'DELETE WHERE {{ GRAPH <{DEVICE_GRAPH}> {{ {pattern} }} }}' for pattern in deletes)
         store.update(update+f'; INSERT DATA {{ GRAPH <{DEVICE_GRAPH}> {{ {out.serialize(format="nt")} }} }}')
         return {'status':'saved','reported_count':p.reported_count,'tick':p.tick}
 
 
 def view(store):
-    with store.lock:
-        g=read_graph(store);registry=read_json(g,REGISTRY);frame=read_json(g,FRAME)
-        positions={p.id:p.model_dump() for p in store.config.positions}
+    # The device graph is replaced in one Fuseki update after track writes. A
+    # concurrent read can see the previous complete frame without waiting for
+    # the simulation worker's full frame processing under store.lock.
+    g=read_graph(store);registry=read_json(g,REGISTRY);frame=read_json(g,FRAME)
+    positions={p.id:p.model_dump() for p in store.config.positions}
     devices=[];now=utcnow();present={e['id'] for e in frame['payload']['entities']} if frame else set()
     for d in (registry or {}).get('devices',[]):
         s=NS['state-'+d['id']];raw=read_json(g,s);published=str(g.value(s,CU.publishedAt) or '')

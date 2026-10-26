@@ -262,7 +262,10 @@ h1 {
   height: 414px;
   position: relative;
 }
+#amap-basemap {position:absolute;inset:0;z-index:0;pointer-events:none}
 #map {
+  position:relative;
+  z-index:1;
   height: 100%;
   background-color: #e9f0f3;
   background-image:
@@ -270,6 +273,7 @@ h1 {
     linear-gradient(90deg, #b1c5d329 1px, transparent 1px);
   background-size: 40px 40px;
 }
+#map.satellite-overlay,#map.satellite-overlay.leaflet-container {background:transparent!important;background-image:none!important}
 .map-badge {
   position: absolute;
   top: 16px;
@@ -608,6 +612,9 @@ footer span:last-child {
   font-size: 29px;
   box-shadow: 0 0 0 6px color-mix(in srgb, var(--marker), transparent 85%);
 }
+.drone-icon svg {transform:rotate(var(--heading,0deg));filter:drop-shadow(0 1px 2px #06152188)}
+.rail-aircraft svg {width:23px;height:23px;vertical-align:middle}
+.focus-symbol svg {width:34px;height:34px;vertical-align:middle}
 .map-label {
   border: 0 !important;
   border-radius: 5px !important;
@@ -1056,8 +1063,8 @@ td small {
 
 .position-icon svg,
 .drone-icon svg {
-  width: 27px;
-  height: 27px;
+  width: 30px;
+  height: 30px;
 }
 
 .learning-panel {margin-top:24px;scroll-margin-top:20px;overflow:hidden}
@@ -1250,7 +1257,7 @@ td small {
 .screen .map-controls {border-color:#25465d;background:#10263a;color:#b4d3e6;padding:5px 14px;gap:14px;font-size:11px}
 .screen .map-controls span {display:none}
 .screen .map-wrap {flex:1;min-height:180px;height:auto;background:#071624}
-.screen #map {background-color:#0b2332;background-image:linear-gradient(#33627d2a 1px,transparent 1px),linear-gradient(90deg,#33627d2a 1px,transparent 1px)}
+.screen #map:not(.satellite-overlay) {background-color:#0b2332;background-image:linear-gradient(#33627d2a 1px,transparent 1px),linear-gradient(90deg,#33627d2a 1px,transparent 1px)}
 .screen #map .leaflet-tile-pane img {filter:brightness(.58) saturate(.75) contrast(1.12)}
 .screen .map-caption {height:30px;background:#0c1e30;color:#9fbdce;padding:0 13px}
 .screen .map-caption span {color:#7fa1b8}

@@ -8,6 +8,7 @@ from . import telemetry
 from .evidence import SensorObservation, save as save_evidence
 
 logger = logging.getLogger(__name__)
+FRAME_TOKEN = object()
 
 
 class Consumer:
@@ -20,6 +21,9 @@ class Consumer:
         self.last_write = None
         self.rejected = 0
         self.dropped = 0
+        self.superseded_frames = 0
+        self.frame_lock = threading.Lock()
+        self.pending_frame = None
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=settings.mqtt_client_id)
         self.client.on_connect = self.on_connect
         self.client.on_disconnect = self.on_disconnect
@@ -46,7 +50,16 @@ class Consumer:
             if len(message.payload)>limit:raise ValueError('报文超过接入大小限制')
             model=models[topic]
             track = model.model_validate_json(message.payload)
-            self.queue.put_nowait(track)
+            if isinstance(track, telemetry.Frame):
+                # 模拟帧代表全量最新状态；积压时不逐帧重放已经过时的位置。
+                with self.frame_lock:
+                    if self.pending_frame is None:
+                        self.queue.put_nowait(FRAME_TOKEN)
+                    else:
+                        self.superseded_frames += 1
+                    self.pending_frame = track
+            else:
+                self.queue.put_nowait(track)
         except queue.Full:
             self.dropped += 1
             logger.warning('队列已满，丢弃本次报文')
@@ -57,9 +70,12 @@ class Consumer:
     def run(self):
         while not self.stop_event.is_set():
             try:
-                track = self.queue.get(timeout=.3)
+                track = self.queue.get(timeout=.1)
             except queue.Empty:
                 continue
+            if track is FRAME_TOKEN:
+                with self.frame_lock:
+                    track, self.pending_frame = self.pending_frame, None
             for attempt in range(3):
                 try:
                     if isinstance(track,telemetry.Registry):
@@ -96,6 +112,9 @@ class Consumer:
         self.worker.join(timeout=10)
 
     def status(self):
+        with self.frame_lock:
+            pending = self.pending_frame is not None
         return {'connected': self.connected, 'queue_size': self.queue.qsize(),
+                'frame_pending': pending, 'superseded_frames': self.superseded_frames,
                 'rejected': self.rejected, 'dropped': self.dropped,
                 'last_write': self.last_write, 'last_error': self.last_error}
