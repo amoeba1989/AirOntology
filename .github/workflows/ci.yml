@@ -17,7 +17,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: pip install -r backend/requirements-dev.txt
       - run: PYTHONPATH=backend python -m pytest backend/tests -q
-      - run: bash -n scripts/deploy-ecs.sh scripts/publish-ecs.sh && python scripts/test_deploy.py
+      - run: bash -n scripts/deploy-ecs.sh scripts/publish-ecs.sh start-local.sh start-local.command && python scripts/test_deploy.py
       - run: npm ci && npm test && npm run build
         working-directory: frontend
       - run: cp .env.example .env && docker compose config --quiet
