@@ -30,7 +30,7 @@ jobs:
           ECS_SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
           ECS_PASSWORD: ${{ secrets.ECS_PASSWORD }}
           ECS_KNOWN_HOSTS: ${{ secrets.ECS_KNOWN_HOSTS }}
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.DEEPSEEKAPIKEY }}
           ECS_PORT: ${{ vars.ECS_PORT }}
           ECS_DEPLOY_PATH: ${{ vars.ECS_DEPLOY_PATH }}
         run: bash scripts/configure-deepseek-ecs.sh
