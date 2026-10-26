@@ -1,0 +1,67 @@
+name: Recover ECS services
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: airontology-ecs-production
+  cancel-in-progress: false
+jobs:
+  recover:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Install SSH password helper
+        run: |
+          if ! command -v sshpass >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y sshpass
+          fi
+      - name: Recover datastore and app
+        env:
+          ECS_HOST: ${{ secrets.ECS_HOST }}
+          ECS_USER: ${{ secrets.ECS_USER }}
+          ECS_SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
+          ECS_PASSWORD: ${{ secrets.ECS_PASSWORD }}
+          ECS_KNOWN_HOSTS: ${{ secrets.ECS_KNOWN_HOSTS }}
+          ECS_PORT: ${{ vars.ECS_PORT }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          DIR=$(mktemp -d)
+          trap 'rm -rf "$DIR"' EXIT
+          printf '%s\n' "$ECS_KNOWN_HOSTS" > "$DIR/known_hosts"
+          OPT=(-o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$DIR/known_hosts" -o ConnectTimeout=20 -o ServerAliveInterval=20 -o ServerAliveCountMax=6)
+          AUTH=()
+          if [[ -n "${ECS_SSH_KEY:-}" ]]; then
+            printf '%s\n' "$ECS_SSH_KEY" > "$DIR/key"
+            chmod 600 "$DIR/key"
+            OPT+=(-i "$DIR/key" -o BatchMode=yes -o IdentitiesOnly=yes)
+          else
+            export SSHPASS="$ECS_PASSWORD"
+            AUTH=(sshpass -e)
+            OPT+=(-o BatchMode=no -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive -o NumberOfPasswordPrompts=1)
+          fi
+          "${AUTH[@]}" ssh "${OPT[@]}" -p "${ECS_PORT:-22}" "$ECS_USER@$ECS_HOST" 'bash -s' <<'REMOTE'
+          set -Eeuo pipefail
+          echo 'Pausing simulator and application'
+          docker stop airontology-simulator-1 airontology-app-1
+          echo 'Restarting Fuseki'
+          docker restart airontology-fuseki-1
+          for n in $(seq 1 60); do
+            state=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' airontology-fuseki-1)
+            if [[ "$state" == healthy ]]; then break; fi
+            sleep 10
+          done
+          [[ "$(docker inspect -f '{{.State.Health.Status}}' airontology-fuseki-1)" == healthy ]] || { echo 'Fuseki remains unhealthy'; exit 1; }
+          echo 'Restarting application'
+          docker start airontology-app-1
+          for n in $(seq 1 90); do
+            state=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' airontology-app-1)
+            if [[ "$state" == healthy ]]; then break; fi
+            sleep 10
+          done
+          [[ "$(docker inspect -f '{{.State.Health.Status}}' airontology-app-1)" == healthy ]] || { echo 'Application remains unhealthy'; exit 1; }
+          echo 'ECS application recovered; simulator remains paused to protect datastore'
+          REMOTE
