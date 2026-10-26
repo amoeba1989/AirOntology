@@ -1,0 +1,36 @@
+name: Configure DeepSeek on ECS
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: airontology-ecs-production
+  cancel-in-progress: false
+jobs:
+  configure:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate scripts
+        run: |
+          bash -n scripts/configure-deepseek-ecs.sh scripts/apply-deepseek-ecs.sh
+          python3 scripts/test_deepseek_config.py
+      - name: Install password login helper
+        run: |
+          if ! command -v sshpass >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y sshpass
+          fi
+      - name: Configure DeepSeek through verified SSH
+        env:
+          ECS_HOST: ${{ secrets.ECS_HOST }}
+          ECS_USER: ${{ secrets.ECS_USER }}
+          ECS_SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
+          ECS_PASSWORD: ${{ secrets.ECS_PASSWORD }}
+          ECS_KNOWN_HOSTS: ${{ secrets.ECS_KNOWN_HOSTS }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          ECS_PORT: ${{ vars.ECS_PORT }}
+          ECS_DEPLOY_PATH: ${{ vars.ECS_DEPLOY_PATH }}
+        run: bash scripts/configure-deepseek-ecs.sh
