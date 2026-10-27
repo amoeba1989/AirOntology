@@ -20,6 +20,13 @@ if [[ -n "$AVAILABLE_KB" ]] && (( AVAILABLE_KB < 524288 )); then
   echo '可用内存不足512MiB，暂停部署。请先停止其他业务服务，再重新运行；避免镜像导入拖垮ECS。'
   exit 1
 fi
+mkdir -p "$ROOT"
+DISK_AVAILABLE_KB=$(df -Pk "$ROOT" | awk 'NR==2 {print $4}')
+[[ "$DISK_AVAILABLE_KB" =~ ^[0-9]+$ ]] || { echo '无法读取部署目录可用磁盘空间。'; exit 1; }
+if (( DISK_AVAILABLE_KB < 6291456 )); then
+  echo '部署目录可用磁盘不足6GiB，拒绝切换服务；请先清理未使用镜像或扩容。'
+  exit 1
+fi
 command -v docker >/dev/null
 command -v flock >/dev/null
 docker compose version >/dev/null
@@ -54,6 +61,12 @@ compose_at "$RELEASE" config --quiet
 echo "[$(date -Is)] 开始导入镜像；此阶段消耗内存和磁盘IO"
 docker load -i "$RELEASE/images.tar.gz"
 echo "[$(date -Is)] 镜像导入完成"
+DISK_AVAILABLE_KB=$(df -Pk "$ROOT" | awk 'NR==2 {print $4}')
+[[ "$DISK_AVAILABLE_KB" =~ ^[0-9]+$ ]] || { echo '无法读取部署目录可用磁盘空间。'; exit 1; }
+if (( DISK_AVAILABLE_KB < 2097152 )); then
+  echo '镜像导入后可用磁盘不足2GiB，拒绝停写和切换服务。'
+  exit 1
+fi
 [[ ! -e "$ROOT/current" || -L "$ROOT/current" ]] || { echo 'current必须为发布软链接'; exit 1; }
 PREVIOUS=''
 if [[ -L "$ROOT/current" ]]; then PREVIOUS=$(readlink -f "$ROOT/current"); fi

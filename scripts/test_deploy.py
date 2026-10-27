@@ -28,12 +28,25 @@ if 'up' in args and os.getenv('MOCK_FAIL')=='1':
 
 
 class DeploymentFlow(unittest.TestCase):
-    def exercise(self, *, fail=False, arch='x86_64', previous=True, stream=False):
+    def exercise(self, *, fail=False, arch='x86_64', previous=True, stream=False, disk=None):
         temp=tempfile.TemporaryDirectory(prefix='airdeploy-')
         self.addCleanup(temp.cleanup)
         root=Path(temp.name)
         binary=root/'bin';binary.mkdir()
         executable=binary/'docker';executable.write_text(MOCK);executable.chmod(0o755)
+        if disk:
+            df=binary/'df'
+            df.write_text('''#!/usr/bin/env python3
+import os
+from pathlib import Path
+counter=Path(os.environ['MOCK_DISK_COUNTER'])
+n=int(counter.read_text()) if counter.exists() else 0
+counter.write_text(str(n+1))
+values=os.environ['MOCK_DISK_VALUES'].split(',')
+print('Filesystem 1024-blocks Used Available Capacity Mounted')
+print('/dev/test 20000000 0 '+values[min(n,len(values)-1)]+' 0% /')
+''')
+            df.chmod(0o755)
         incoming=root/'incoming'/RELEASE_ID;incoming.mkdir(parents=True)
         package=incoming/'bundle.tar'
         with tarfile.open(package,'w') as archive:
@@ -53,9 +66,10 @@ class DeploymentFlow(unittest.TestCase):
         result=subprocess.run(command+[str(root),RELEASE_ID,
             hashlib.sha256(package.read_bytes()).hexdigest(),'amd64','true'],
             env={**os.environ,'PATH':str(binary)+':'+os.environ['PATH'],'MOCK_LOG':str(log),
-                 'MOCK_DRAIN_STDIN':'1' if stream else '0','MOCK_FAIL':'1' if fail else '0','MOCK_ARCH':arch,'CANDIDATE_ID':RELEASE_ID},
+                 'MOCK_DRAIN_STDIN':'1' if stream else '0','MOCK_FAIL':'1' if fail else '0','MOCK_ARCH':arch,'CANDIDATE_ID':RELEASE_ID,
+                 'MOCK_DISK_COUNTER':str(root/'disk-count'),'MOCK_DISK_VALUES':','.join(map(str,disk or []))},
             text=True,capture_output=True,input=(ROOT/'scripts/deploy-ecs.sh').read_text() if stream else None)
-        commands=[json.loads(line) for line in log.read_text().splitlines()]
+        commands=[json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
         return root,old,result,commands
 
     def test_success_imports_before_stopping_and_keeps_volumes(self):
@@ -89,6 +103,15 @@ class DeploymentFlow(unittest.TestCase):
         self.assertNotEqual(result.returncode,0)
         self.assertFalse(any('stop' in c or c[0]=='load' for c in commands))
         self.assertEqual((root/'current').resolve(),old)
+
+    def test_low_disk_never_stops_services(self):
+        for available in ([1000000], [8000000, 1000000]):
+            with self.subTest(available=available):
+                root,old,result,commands=self.exercise(disk=available)
+                self.assertNotEqual(result.returncode,0)
+                self.assertIn('可用磁盘不足',result.stdout)
+                self.assertFalse(any('stop' in c for c in commands))
+                self.assertEqual((root/'current').resolve(),old)
 
     def test_first_deployment_can_start_without_previous_release(self):
         root,old,result,commands=self.exercise(previous=False)

@@ -53,14 +53,26 @@ jobs:
           "${AUTH[@]}" ssh "${OPT[@]}" -p "${ECS_PORT:-22}" "$ECS_USER@$ECS_HOST" "$COMMAND" <<'REMOTE'
           set -Eeuo pipefail
           ROOT=$1
+          exec 9>"$ROOT/deploy.lock"
+          flock -n 9 || { echo 'Another deployment or maintenance operation is active'; exit 1; }
           echo 'Disk before cleanup'
           df -h "$ROOT"
           docker system df || true
           echo 'Removing only failed deployment transfer files and unused Docker caches'
           FAILED_ID=623bad2e7b0355f997365dd122b9804bc684dcfd-40453790062-1
           rm -f "$ROOT/incoming/$FAILED_ID/bundle.tar" "$ROOT/releases/$FAILED_ID/images.tar.gz"
-          docker builder prune -f
-          docker image prune -f
+          docker builder prune -a -f
+          # Remove only this project's old image tags, preserving images used by
+          # any container and all tags needed by the current release.
+          CURRENT_IMAGES=$(awk -F= '/^(APP_IMAGE|FUSEKI_IMAGE|MQTT_IMAGE)=/ {print $2}' "$ROOT/current/images.env")
+          CONTAINER_IDS=$(docker ps -aq | xargs -r docker inspect --format '{{.Image}}' || true)
+          docker image ls --format '{{.Repository}}:{{.Tag}}' | while IFS= read -r tag; do
+            case "$tag" in airontology-app:*|airontology-fuseki:*|airontology-mqtt:*) ;; *) continue;; esac
+            printf '%s\n' "$CURRENT_IMAGES" | grep -Fxq "$tag" && continue
+            id=$(docker image inspect --format '{{.Id}}' "$tag" 2>/dev/null) || continue
+            printf '%s\n' "$CONTAINER_IDS" | grep -Fxq "$id" && continue
+            docker image rm "$tag" || true
+          done
           echo 'Disk after cleanup'
           df -h "$ROOT"
           echo 'Pausing simulator and application'
