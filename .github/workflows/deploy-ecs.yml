@@ -1,6 +1,9 @@
 name: Deploy AirOntology to ECS
-run-name: Deploy ${{ github.sha }} to ECS (${{ inputs.architecture }})
+run-name: Deploy ${{ github.sha }} to ECS (${{ inputs.architecture || 'amd64' }})
 on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/deploy-ecs.yml]
   workflow_dispatch:
     inputs:
       architecture:
@@ -25,8 +28,8 @@ jobs:
     timeout-minutes: 60
     env:
       RELEASE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-      TARGET_ARCH: ${{ inputs.architecture }}
-      RUN_SIMULATOR: ${{ inputs.run_simulator }}
+      TARGET_ARCH: ${{ inputs.architecture || 'amd64' }}
+      RUN_SIMULATOR: ${{ github.event_name == 'push' || inputs.run_simulator }}
     steps:
       - uses: actions/checkout@v4
       - name: Validate deployment configuration
