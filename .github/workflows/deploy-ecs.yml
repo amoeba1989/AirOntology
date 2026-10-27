@@ -28,7 +28,7 @@ jobs:
     timeout-minutes: 60
     env:
       RELEASE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-      TARGET_ARCH: ${{ inputs.architecture }}
+      TARGET_ARCH: ${{ inputs.architecture || 'amd64' }}
       RUN_SIMULATOR: ${{ github.event_name == 'push' || inputs.run_simulator }}
     steps:
       - uses: actions/checkout@v4
