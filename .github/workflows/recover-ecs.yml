@@ -1,5 +1,8 @@
 name: Recover ECS services
 on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/recover-ecs.yml]
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,6 +29,7 @@ jobs:
           ECS_PASSWORD: ${{ secrets.ECS_PASSWORD }}
           ECS_KNOWN_HOSTS: ${{ secrets.ECS_KNOWN_HOSTS }}
           ECS_PORT: ${{ vars.ECS_PORT }}
+          ECS_DEPLOY_PATH: ${{ vars.ECS_DEPLOY_PATH }}
         run: |
           set -Eeuo pipefail
           umask 077
@@ -43,10 +47,24 @@ jobs:
             AUTH=(sshpass -e)
             OPT+=(-o BatchMode=no -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive -o NumberOfPasswordPrompts=1)
           fi
-          "${AUTH[@]}" ssh "${OPT[@]}" -p "${ECS_PORT:-22}" "$ECS_USER@$ECS_HOST" 'bash -s' <<'REMOTE'
+          ROOT=${ECS_DEPLOY_PATH:-/opt/airontology}
+          [[ "$ROOT" =~ ^/[A-Za-z0-9/_-]+$ && "$ROOT" != / ]]
+          printf -v COMMAND 'bash -s -- %q' "$ROOT"
+          "${AUTH[@]}" ssh "${OPT[@]}" -p "${ECS_PORT:-22}" "$ECS_USER@$ECS_HOST" "$COMMAND" <<'REMOTE'
           set -Eeuo pipefail
+          ROOT=$1
+          echo 'Disk before cleanup'
+          df -h "$ROOT"
+          docker system df || true
+          echo 'Removing only failed deployment transfer files and unused Docker caches'
+          FAILED_ID=623bad2e7b0355f997365dd122b9804bc684dcfd-40453790062-1
+          rm -f "$ROOT/incoming/$FAILED_ID/bundle.tar" "$ROOT/releases/$FAILED_ID/images.tar.gz"
+          docker builder prune -f
+          docker image prune -f
+          echo 'Disk after cleanup'
+          df -h "$ROOT"
           echo 'Pausing simulator and application'
-          docker stop airontology-simulator-1 airontology-app-1
+          docker stop airontology-simulator-1 airontology-app-1 || true
           echo 'Restarting Fuseki'
           docker restart airontology-fuseki-1
           for n in $(seq 1 60); do
