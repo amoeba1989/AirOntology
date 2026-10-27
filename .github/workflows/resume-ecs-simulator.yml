@@ -26,6 +26,7 @@ jobs:
           ECS_PASSWORD: ${{ secrets.ECS_PASSWORD }}
           ECS_KNOWN_HOSTS: ${{ secrets.ECS_KNOWN_HOSTS }}
           ECS_PORT: ${{ vars.ECS_PORT }}
+          ECS_DEPLOY_PATH: ${{ vars.ECS_DEPLOY_PATH }}
         run: |
           set -Eeuo pipefail
           umask 077
@@ -43,10 +44,38 @@ jobs:
             AUTH=(sshpass -e)
             OPT+=(-o BatchMode=no -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive -o NumberOfPasswordPrompts=1)
           fi
-          "${AUTH[@]}" ssh "${OPT[@]}" -p "${ECS_PORT:-22}" "$ECS_USER@$ECS_HOST" 'bash -s' <<'REMOTE'
+          ROOT=${ECS_DEPLOY_PATH:-/opt/airontology}
+          [[ "$ROOT" =~ ^/[A-Za-z0-9/_-]+$ && "$ROOT" != / ]] || exit 1
+          printf -v COMMAND 'bash -s -- %q' "$ROOT"
+          "${AUTH[@]}" ssh "${OPT[@]}" -p "${ECS_PORT:-22}" "$ECS_USER@$ECS_HOST" "$COMMAND" <<'REMOTE'
           set -Eeuo pipefail
+          ROOT=${1:?}
+          [[ "$ROOT" =~ ^/[A-Za-z0-9/_-]+$ && "$ROOT" != / ]] || exit 1
+          exec 9>"$ROOT/deploy.lock"
+          flock -n 9 || { echo '另一部署正在运行'; exit 1; }
+          RELEASE=$(readlink -f "$ROOT/current")
+          ENV_FILE="$ROOT/shared/.env"
           [[ "$(docker inspect -f '{{.State.Health.Status}}' airontology-app-1)" == healthy ]]
           [[ "$(docker inspect -f '{{.State.Health.Status}}' airontology-fuseki-1)" == healthy ]]
-          docker start airontology-simulator-1
-          echo 'Simulator running; app and Fuseki were healthy before resume'
+          python3 - "$ENV_FILE" <<'PY'
+          import os, pathlib, re, sys, tempfile
+          path = pathlib.Path(sys.argv[1])
+          lines = [line for line in path.read_text().splitlines()
+                   if not re.match(r'^\s*DEMO_INTERVAL_SECONDS\s*=', line)]
+          lines.append('DEMO_INTERVAL_SECONDS=15')
+          fd, name = tempfile.mkstemp(prefix='.env.simulator.', dir=path.parent)
+          try:
+              with os.fdopen(fd, 'w') as stream: stream.write('\n'.join(lines) + '\n')
+              os.chmod(name, 0o600)
+              os.replace(name, path)
+          finally:
+              if os.path.exists(name): os.unlink(name)
+          PY
+          docker compose --profile demo --project-name airontology --project-directory "$RELEASE" \
+            --env-file "$ENV_FILE" --env-file "$RELEASE/images.env" -f "$RELEASE/compose.ecs.yaml" \
+            up -d --no-deps --force-recreate --wait --wait-timeout 120 simulator
+          sleep 35
+          [[ "$(docker inspect -f '{{.State.Health.Status}}' airontology-app-1)" == healthy ]] || { docker stop airontology-simulator-1; echo 'Application unhealthy; simulator stopped'; exit 1; }
+          [[ "$(docker inspect -f '{{.State.Health.Status}}' airontology-fuseki-1)" == healthy ]] || { docker stop airontology-simulator-1; echo 'Fuseki unhealthy; simulator stopped'; exit 1; }
+          echo 'Simulator running at a 15-second interval; application and Fuseki healthy'
           REMOTE
