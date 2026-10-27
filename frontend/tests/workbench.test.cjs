@@ -152,7 +152,11 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     else if(url === '/api/evidence/validate')json={conforms:true,focus_count:12,result_count:0,results:[],report_ttl:'sh:ValidationReport'};
     else if (url === '/api/agent/questions') json = {items:[{id:'attention',label:'哪些无人机最需关注？'},{id:'nearest',label:'哪些无人机距离阵地最近？'}],llm_configured:false};
     else if (url === '/api/agent/ask') {
-      const messages=[['snapshot',{position:positions[0],policy:{label:'距离关注排序策略 V1',description:'等级 → 时间 → 距离'},at,eligible:3,excluded:[],ttl:'cu:test a cu:SituationAnalysis .'}],
+      const questionId=JSON.parse(opts.body).question_id;
+      const policy=questionId==='nearest'
+        ? {label:'最近距离排序策略 V1',description:'距离 → 目标编号'}
+        : {label:'距离关注排序策略 V1',description:'等级 → 时间 → 距离'};
+      const messages=[['snapshot',{question_id:questionId,position:positions[0],policy,at,eligible:3,excluded:[],ttl:'cu:test a cu:SituationAnalysis .'}],
         ['candidate',{rank:1,target_id:'drone002',name:'无人机002',level_label:'高关注',distance:80,eta_seconds:0,reason:'距离80米',timestamp:at}],
         ['candidate',{rank:2,target_id:'drone003',name:'无人机003',level_label:'中关注',distance:120,eta_seconds:null,reason:'距离120米',timestamp:at}],
         ['explanation',{source:'rule',text:'这是规则说明，不是大模型回答。'}],['done',{}]];
@@ -362,6 +366,9 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     assert.equal(staleQuestion.disabled, false, '过期目标应由服务端说明排除原因，不能阻止提问');
     staleQuestion.click();
     await until(() => doc.querySelector('.agent-question')?.textContent.includes('距离阵地最近'));
+    await until(() => doc.querySelector('.agent-snapshot')?.textContent.includes('距离 → 目标编号'));
+    assert.equal(doc.querySelector('.agent-candidates').textContent.includes('观测起算进入高关注圈'),false);
+    assert.ok(doc.querySelector('.agent-candidates').textContent.includes('按距离升序排列'));
     targets.forEach(t => { t.stale = false; });
     doc.querySelector('[aria-label="收起智能问答"]').click();
     await until(() => doc.querySelector('.agent-orb'));

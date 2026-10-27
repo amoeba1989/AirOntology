@@ -33,6 +33,13 @@ def test_policy_rank_and_radial_trend_are_deterministic(settings, store):
     assert result['candidates'][0]['previous_observation_uri']
     nearest = agent.build_analysis(store,settings,'nearest','pos001')
     assert [c['target_id'] for c in nearest['candidates']] == ['near','approaching']
+    assert all(c['eta_seconds'] is None and c['closing_speed'] is None for c in nearest['candidates'])
+    nearest_payload = agent.explanation_payload(nearest)
+    assert all('eta_seconds' not in c and 'trend_note' not in c and 'level_label' not in c
+               for c in nearest_payload['candidates'])
+    assert nearest_payload['policy']['keys'] == ['distanceToPosition','targetIdentifier']
+    assert 'max_gap' not in nearest_payload['policy']
+    assert '不使用趋势' in nearest_payload['scope']
     graph = Graph().parse(data=result['ttl'],format='turtle')
     assert len(list(graph.subjects(RDF.type,CU.RankedCandidate))) == 2
     assert (CU[result['id']], CU.usedRankingPolicy, CU['attention-policy-v1']) in graph
