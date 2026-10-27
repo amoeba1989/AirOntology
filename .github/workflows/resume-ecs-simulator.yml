@@ -1,9 +1,6 @@
 name: Resume ECS simulator
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: [.github/workflows/resume-ecs-simulator.yml]
 permissions:
   contents: read
 concurrency:
