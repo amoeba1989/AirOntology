@@ -2,26 +2,30 @@ import { ref, onUnmounted } from 'vue/dist/vue.esm-bundler.js';
 import { readAgentEvents } from './agent-stream.js';
 
 export default {
-  props: ['request', 'data', 'point', 'mode', 'locateCandidate'],
+  props: ['request', 'data', 'point', 'mode', 'locateCandidate', 'returnLive'],
   setup(props) {
     const open = ref(false), questions = ref([]), snapshot = ref(null), cards = ref([]);
     const busy = ref(false), error = ref(''), notice = ref(''), explanation = ref(''), explanationSource = ref('');
     const evidenceOpen = ref(false), configured = ref(false), selectedQuestion = ref('');
+    const loadingQuestions = ref(false);
     let controller, requestId = 0;
     async function toggle() {
       if (open.value) { open.value = false; return; }
       open.value = true;
+      loadingQuestions.value = true;
+      error.value = '';
       try {
         const value = await props.request('/api/agent/questions');
         questions.value = value.items; configured.value = value.llm_configured;
       } catch (e) { error.value = e.message; }
+      finally { loadingQuestions.value = false; }
     }
     function stop() {
       requestId++; controller?.abort(); busy.value = false;
       notice.value = '已停止接收；已收到的结果仍对应当时快照。';
     }
     async function ask(question) {
-      if (busy.value || props.mode !== 'live' || !props.point) return;
+      if (busy.value || !props.point) return;
       const token = ++requestId;
       controller = new AbortController();
       const timeout = setTimeout(() => controller?.abort(), 65000);
@@ -29,6 +33,7 @@ export default {
       error.value = ''; notice.value = ''; evidenceOpen.value = false;
       selectedQuestion.value = question.label; busy.value = true;
       try {
+        if (props.mode !== 'live') await props.returnLive();
         const response = await fetch('/api/agent/ask', {method:'POST',
           headers:{'Content-Type':'application/json'}, signal:controller.signal,
           body:JSON.stringify({question_id:question.id,position_id:props.point.id,limit:10})});
@@ -50,7 +55,7 @@ export default {
     onUnmounted(() => { requestId++; controller?.abort(); });
     const format = value => value == null ? '未知' : value.toFixed(1);
     const time = value => value ? new Date(value).toLocaleTimeString('zh-CN',{hour12:false}) : '—';
-    return {open,questions,snapshot,cards,busy,error,notice,explanation,explanationSource,evidenceOpen,configured,selectedQuestion,toggle,stop,ask,format,time};
+    return {open,questions,snapshot,cards,busy,error,notice,explanation,explanationSource,evidenceOpen,configured,selectedQuestion,loadingQuestions,toggle,stop,ask,format,time};
   },
   template: `
   <button v-if="!open" class="agent-orb" aria-label="打开智能态势问答" @click="toggle"><b>AI</b><span>态势问答</span></button>
@@ -59,9 +64,11 @@ export default {
     <div class="agent-content">
       <div class="agent-context"><span>所选阵地：{{point?.name || '等待阵地'}}</span><span>{{configured?'DeepSeek 解读已配置':'规则演示模式'}}</span></div>
       <p class="agent-boundary">Python 按本体策略计算与排序；大模型只解释。当前依据是距离与可用趋势，不等同于综合威胁。</p>
-      <p v-if="mode!=='live'" class="agent-notice">请返回实时态势后提问，避免把回放数据当成当前结果。</p>
-      <div class="agent-questions"><button v-for="q in questions" :key="q.id" @click="ask(q)" :disabled="busy||mode!=='live'||!point||!data?.targets.some(t=>!t.stale)">{{q.label}} ↗</button></div>
-      <p v-if="!data?.targets.length" class="agent-notice">等待有效无人机观测后再提问。</p>
+      <p v-if="mode!=='live'" class="agent-notice">点击问题会先返回实时态势，再使用当前观测生成回答。</p>
+      <div class="agent-questions"><button v-for="q in questions" :key="q.id" @click="ask(q)" :disabled="busy||!point">{{q.label}} ↗</button></div>
+      <p v-if="loadingQuestions" class="agent-notice">正在加载预设问题…</p>
+      <p v-else-if="!questions.length&&!error" class="agent-notice">暂时没有可用的预设问题。</p>
+      <p v-if="!data?.targets.some(t=>!t.stale)" class="agent-notice">当前没有新观测，仍可提问；结果会列出未参与排序的对象与原因。</p>
       <div v-if="selectedQuestion" class="agent-question">{{selectedQuestion}}</div>
       <div v-if="snapshot" class="agent-snapshot"><b>{{snapshot.position.name}} · {{snapshot.policy.label}}</b><span>{{time(snapshot.at)}} 固定快照 · {{snapshot.eligible}} 架可用 · {{snapshot.excluded.length}} 架排除</span><span>排序：{{snapshot.policy.description}}</span><button @click="evidenceOpen=!evidenceOpen">{{evidenceOpen?'收起 RDF 证据':'查看本次本体事实与排序策略'}}</button></div>
       <div class="agent-candidates"><button v-for="c in cards" :key="c.target_id" class="agent-candidate" :aria-label="'定位第'+c.rank+'名 '+c.name" @click="locateCandidate(c,snapshot)"><span class="candidate-rank">{{c.rank}}</span><div><b>第 {{c.rank}} 名 · {{c.name}}</b><span :style="{color:c.color}">{{c.level_label}} · {{format(c.distance)}} 米</span><small>观测起算进入高关注圈：{{c.eta_seconds===0?'该次观测已在圈内':c.eta_seconds==null?'未知':format(c.eta_seconds)+' 秒（估计）'}}</small><small>{{({simulated:"模拟数据",operational:"业务接入声明（未验证）"})[c.data_mode]||"来源待核实"}} · {{c.reason}}</small><small>观测 {{time(c.timestamp)}} · {{c.trend_note}}</small><span class="candidate-link">定位地图 · 查看对象 ↗</span></div></button></div>

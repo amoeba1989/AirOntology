@@ -64,7 +64,8 @@ createApp({
       mapMessage = ref(""),
       trace = ref(null);
     const showTrails = ref(true),
-      showRanges = ref(true);
+      showRanges = ref(true),
+      showDevices = ref(true);
     const routeView = () => location.pathname.replace(/\/$/, '') === '/back' ? 'learning' : 'screen';
     const viewMode = ref(routeView());
     async function changeView(value) {
@@ -329,31 +330,35 @@ createApp({
         });
         marker.on("click", () => choosePosition(p.id));
       }
-      if(mode.value==='live') for(const d of deviceData.value?.devices||[]){
+      if(mode.value==='live' && showDevices.value) for(const d of deviceData.value?.devices||[]){
         if(d.kind==='uav'||!d.state?.transform)continue;
         const p=d.state.transform;
         const icon=icons[d.kind==='radar'?'radar':'jammer'];
         const stale=d.stale||!d.in_latest_frame||!!deviceError.value;
-        const marker=L.marker(displayPoint(p.latitude_deg,p.longitude_deg),{opacity:stale ? 0.5 : 1,icon:L.divIcon({className:'',html:`<div class="equipment-icon ${d.kind}"><img src="${icon}" alt=""></div>`,iconSize:[36,36],iconAnchor:[18,18]})}).addTo(layers);
+        const status=stale ? 'is-stale' : d.kind==='jammer' && d.state?.jammer?.emitting ? 'is-emitting' : 'is-current';
+        const marker=L.marker(displayPoint(p.latitude_deg,p.longitude_deg),{icon:L.divIcon({className:'',html:`<div class="equipment-icon ${d.kind} ${status} ${d.id===selectedDeviceId.value?'selected-marker':''}"><img src="${icon}" alt=""></div>`,iconSize:[42,42],iconAnchor:[21,21]})}).addTo(layers);
         marker.bindTooltip(tooltip(d.kind_label+' · '+d.name+' · 模拟数据 · '+d.status_label),{direction:'top'});
         marker.on('click',()=>selectMapDevice(d));
       }
       const thresholds = assessment.value?.thresholds || data.value.thresholds;
       if (point.value && showRanges.value)
         [...thresholds].reverse().forEach((radius, i) => {
-          const color = ["#2586bd", "#da850e", "#d83e46"][i];
+          const color = ["#d7aa76", "#efb77d", "#ff7f8d"][i];
           const circle = L.circle(displayPoint(point.value.lat, point.value.lon), {
             radius,
             color,
-            weight: i === 2 ? 4 : 3,
-            dashArray: ["10 6", "5 5", null][i],
-            fillOpacity: viewMode.value === 'screen' ? 0.09 : 0.055,
+            weight: i === 2 ? 1.5 : 1,
+            opacity: [.42,.55,.78][i],
+            dashArray: ["5 8", "4 6", null][i],
+            fillColor: color,
+            fillOpacity: [.012,.018,.04][i],
+            interactive: false,
           }).addTo(layers);
           L.marker([circle.getBounds().getNorth(), displayPoint(point.value.lat,point.value.lon)[1]], {
             interactive: false,
             icon: L.divIcon({
               className: "range-label",
-              html: `${radius} 米 · ${["低", "中", "高"][i]}关注`,
+              html: `${radius}m · ${["低", "中", "高"][i]}关注`,
               iconSize: [124, 24],
               iconAnchor: [62, 12],
             }),
@@ -412,10 +417,14 @@ createApp({
             Math.max(10, (data.value.stale_seconds || 30) * 2),
           )) {
             const coords = segment.map((p) => displayPoint(p.lat, p.lon));
+            if (active) L.polyline(coords, {
+              color: '#6cddf4', weight: 7, opacity: .12,
+              lineCap: 'round', lineJoin: 'round', interactive: false,
+            }).addTo(pathLayer);
             L.polyline(coords, {
               color: active ? '#6cddf4' : '#77a7c0',
               weight: active ? 2.5 : 1.25,
-              opacity: active ? .95 : .34,
+              opacity: active ? .92 : .27,
               lineCap: 'round', lineJoin: 'round',
             })
               .addTo(pathLayer)
@@ -787,6 +796,7 @@ createApp({
       follow,
       showTrails,
       showRanges,
+      showDevices,
       draw,
       mapMessage,
       selected,

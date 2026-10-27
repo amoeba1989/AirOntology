@@ -280,10 +280,16 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     button("播放回放").click();
     await wait(700);
     assert.ok(doc.querySelector(".frame-label").textContent.includes("2 / 2"));
-    button("返回实时").click();
+    doc.querySelector('[aria-label="打开智能态势问答"]').click();
+    await until(() => button('哪些无人机最需关注？ ↗'));
+    assert.equal(button('哪些无人机最需关注？ ↗').disabled, false);
+    button('哪些无人机最需关注？ ↗').click();
     await until(
       () => doc.querySelector(".mode-label").textContent === "实时态势",
     );
+    await until(() => doc.querySelector('.agent-snapshot'));
+    doc.querySelector('[aria-label="收起智能问答"]').click();
+    await until(() => doc.querySelector('.agent-orb'));
     button("阵地与规则配置").click();
     await until(() => doc.querySelector('[role="dialog"]'));
     assert.equal(doc.querySelectorAll(".config-position").length, 2);
@@ -349,6 +355,14 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     await until(() => doc.querySelector('[aria-label="选择无人机"]').value==='drone003');
     button('查看本次本体事实与排序策略').click();
     await until(() => doc.querySelector('.agent-evidence pre')?.textContent.includes('SituationAnalysis'));
+    targets.forEach(t => { t.stale = true; });
+    await wait(3100);
+    await until(() => [...doc.querySelectorAll('.agent-notice')].some(el => el.textContent.includes('当前没有新观测')));
+    const staleQuestion = button('哪些无人机距离阵地最近？ ↗');
+    assert.equal(staleQuestion.disabled, false, '过期目标应由服务端说明排除原因，不能阻止提问');
+    staleQuestion.click();
+    await until(() => doc.querySelector('.agent-question')?.textContent.includes('距离阵地最近'));
+    targets.forEach(t => { t.stale = false; });
     doc.querySelector('[aria-label="收起智能问答"]').click();
     await until(() => doc.querySelector('.agent-orb'));
     button('多源观测与证据').click();

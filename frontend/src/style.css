@@ -1366,3 +1366,37 @@ td small {
 .learning-mode .situation-grid .details {color:#dcebf5}.learning-mode .selection-fields label,.learning-mode .follow,.learning-mode .object-state {color:#afd0e2}
 .learning-mode .devices-panel details,.learning-mode .evidence-panel details {border-color:#37556b}
 @media(max-width:700px){.learning-mode header {height:auto;min-height:58px;flex-wrap:wrap;padding:8px}}
+
+/* Situation GIS: retain the supplied object icons and distinguish observed facts from display effects. */
+.screen .map-panel {border-color:#345873;border-radius:12px;overflow:hidden;box-shadow:0 12px 30px #03101d55}
+.screen .map-wrap {border-top:1px solid #42627a;isolation:isolate}
+.screen .map-controls {background:linear-gradient(110deg,#143a50,#10283b);border-color:#33546b}
+.screen .map-controls label {white-space:nowrap;color:#d2e9f4}
+.screen .map-controls input {accent-color:#69d8ed}
+.screen .map-controls span {margin-left:auto;color:#93b4c5}
+.screen .map-badge,.screen .legend {background:linear-gradient(135deg,#17374fe8,#0b2236ed);border:1px solid #8dbbd34a;border-radius:11px;box-shadow:inset 0 1px 0 #d4f3ff21,0 10px 28px #0006;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);pointer-events:none}
+.screen .map-badge {top:12px;left:12px;padding:9px 11px;color:#e7f7ff;font-weight:600}
+.screen .map-badge > span:last-child {color:#a6c7d8;font-weight:400}
+.screen .legend {bottom:12px;left:12px;right:12px;width:max-content;max-width:calc(100% - 88px);gap:5px 13px;padding:6px 9px;font-size:9px}
+.screen .legend span {color:#bfd9e7}
+.screen .legend img {width:18px;height:18px;margin-right:1px}
+.screen .legend .legend-track {border-top-color:#79e6f7}
+.screen .legend .legend-link {border-top-color:#f0be73}
+.screen .legend .legend-range {border-top:1px dashed #f6ba79}
+.screen .map-caption {background:#0b1d2e;border-top:1px solid #28475f;color:#9dbbca}
+.screen .map-caption span {color:#a9c8d7}
+.screen .range-label {padding:1px 6px;border:1px solid #e5b07a69;border-radius:5px;background:#112e41e8;color:#f4cfaa;box-shadow:0 3px 9px #0008;font-size:10px;font-weight:500;line-height:17px}
+.screen .map-label,.screen .distance-label {border-radius:7px!important;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.screen .drone-icon,.screen .position-icon,.screen .equipment-icon {position:relative;isolation:isolate}
+.screen .drone-icon img,.screen .rail-aircraft img,.screen .focus-symbol img,.screen .legend img[src$="uav.png"],.learning-mode .drone-icon img,.learning-mode .legend img[src$="uav.png"] {filter:drop-shadow(0 2px 3px #03121fc9)}
+.screen .drone-icon.selected-marker::before,.screen .position-icon.selected-marker::before,.screen .equipment-icon.selected-marker::before {content:"";position:absolute;inset:3px;border:1px solid #7ce3f5a3;border-radius:50%;background:#2479a11d;box-shadow:0 0 15px #3fbcd879;z-index:-1}
+.screen .position-icon.selected-marker::before {inset:1px;border-color:#f2bf83a8;background:#c38b341a;box-shadow:0 0 16px #e9a95855}
+.screen .equipment-icon {width:42px;height:42px}
+.screen .equipment-icon img {width:32px;height:32px;filter:drop-shadow(0 2px 3px #03121fc9)}
+.screen .equipment-icon::before {content:"";position:absolute;inset:3px;border:1px solid #79e2cb9c;border-radius:50%;background:#2dbda823;box-shadow:0 0 12px #4acbb44d;z-index:-1}
+.screen .equipment-icon.jammer::before {border-color:#b7a0ffad;background:#9c81ed21;box-shadow:0 0 12px #9c81ed58}
+.screen .equipment-icon.is-emitting::before {border-width:2px;box-shadow:0 0 16px #b7a0ff9c}
+.screen .equipment-icon.is-stale {opacity:.52}
+.screen .equipment-icon.is-stale::before {border-color:#8a9aa4a0;background:#58708025;box-shadow:none}
+.screen .agent-questions button:disabled {opacity:.55;cursor:not-allowed;transform:none}
+@media(max-width:700px){.screen .map-controls {gap:7px 12px}.screen .map-controls span {display:none}.screen .legend {max-width:calc(100% - 24px);right:12px;gap:3px 8px}.screen .map-caption span {display:none}}
