@@ -1160,8 +1160,11 @@ td small {
 .agent-candidates {display:grid;gap:9px;margin:12px 0}.agent-candidate {display:flex;gap:11px;align-items:flex-start;text-align:left;padding:12px;white-space:normal;width:100%;border-radius:16px;color:var(--agent-ink)}.agent-candidate:hover {background:linear-gradient(145deg,rgba(205,241,255,.24),rgba(113,190,229,.13));border-color:rgba(208,245,255,.54);transform:translateY(-1px)}
 .candidate-rank {display:grid;place-items:center;flex:none;min-width:32px;height:32px;border:1px solid rgba(206,246,255,.41);border-radius:11px;background:linear-gradient(145deg,rgba(146,217,249,.46),rgba(24,96,145,.5));color:#fff;font-size:17px;font-weight:bold;box-shadow:inset 0 1px 0 rgba(255,255,255,.31)}.agent-candidate>div {display:flex;flex-direction:column;gap:3px;min-width:0}.agent-candidate b {font-size:13px}.agent-candidate small {font-size:10px;color:var(--agent-muted)}.candidate-link {font-size:11px;color:#9de3ff}
 .agent-explanation {border-radius:15px;padding:13px;overflow-wrap:anywhere}.agent-explanation p {white-space:pre-wrap;margin:8px 0}.agent-explanation small {font-size:10px;color:var(--agent-muted)}
+.agent-explanation .agent-reference {display:inline;border:0;background:none;color:#9de8ff;padding:0 2px;text-decoration:underline;white-space:nowrap}.agent-explanation .agent-reference:hover {color:#fff;background:none}
 .agent-notice,.agent-error {padding:9px 11px;border-radius:11px}.agent-notice {border:1px solid rgba(158,218,248,.18);background:rgba(122,190,226,.13);color:#c8e7f6}.agent-error {border:1px solid rgba(255,176,147,.32);background:rgba(148,57,46,.24);color:#ffd3c3}.agent-progress {color:#b5e7ff}.agent-progress button {border-radius:99px;background:rgba(186,228,248,.16);border-color:var(--agent-line);color:var(--agent-ink)}.agent-excluded {font-size:11px;color:#d9c99d}.agent-excluded summary {cursor:pointer}
 .agent-evidence {padding:10px 12px;border-radius:15px}.agent-evidence pre {white-space:pre;overflow:auto;max-height:300px;padding:12px;border:1px solid rgba(190,232,251,.17);border-radius:10px;background:rgba(3,18,33,.5);color:#d9e9f3;font-size:10px}.agent-evidence h3 {font-size:13px}
+.agent-triples {list-style:none;margin:10px 0;padding:0;max-height:280px;overflow:auto}.agent-triples li {padding:7px 0;border-bottom:1px solid rgba(190,232,251,.14)}.agent-triples b {display:block;color:#a7e7ff;font-size:10px}.agent-triples code {display:block;color:#d8edf7;font-size:10px;white-space:normal;overflow-wrap:anywhere}.agent-evidence summary {cursor:pointer;color:#bfefff}
+.agent-triples li.selected {background:rgba(105,208,239,.17);border-left:2px solid #9de8ff;padding-left:6px}
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))) {.agent-dialog {background:#102c43}.agent-orb {background:#245475}}
 @media(max-width:1000px){.screen .brand small,.screen .edition,.screen .replay-help {display:none}.screen .situation-grid {grid-template-columns:minmax(0,1fr) 260px}.screen header {gap:8px}.view-switch {margin-left:0}}
 @media(max-width:700px){.screen {height:auto;min-height:100dvh;overflow:auto}.screen header {height:auto;min-height:64px;flex-wrap:wrap;padding:10px}.screen main {height:auto;display:flex;flex-direction:column;padding:8px}.screen .overview {min-height:100px}.screen .situation-grid {display:flex;flex-direction:column}.screen .map-wrap {height:380px;flex:auto}.screen .alarm-panel {max-height:185px}.screen .situation-grid .details {max-height:340px}.agent-dialog {right:8px;bottom:8px;max-width:calc(100vw - 16px)}.agent-orb {bottom:14px;right:14px}}
@@ -1400,3 +1403,11 @@ td small {
 .screen .equipment-icon.is-stale::before {border-color:#8a9aa4a0;background:#58708025;box-shadow:none}
 .screen .agent-questions button:disabled {opacity:.55;cursor:not-allowed;transform:none}
 @media(max-width:700px){.screen .map-controls {gap:7px 12px}.screen .map-controls span {display:none}.screen .legend {max-width:calc(100% - 24px);right:12px;gap:3px 8px}.screen .map-caption span {display:none}}
+
+/* Distance levels use the same colors and line patterns on the map and legend. */
+.screen .legend .legend-range.range-high {border-top:3px solid #ff6675}
+.screen .legend .legend-range.range-medium {border-top:3px dashed #ffbd55}
+.screen .legend .legend-range.range-low {border-top:3px dotted #56d99a}
+.screen .range-label.range-label-high {color:#ffd9dd;border-color:#ff6675;background:#451c28ee}
+.screen .range-label.range-label-medium {color:#ffe5bb;border-color:#ffbd55;background:#493318ee}
+.screen .range-label.range-label-low {color:#c9ffe2;border-color:#56d99a;background:#123d31ee}

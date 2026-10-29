@@ -36,7 +36,7 @@ class QueryInput(BaseModel):
 
 
 class AgentQuestion(BaseModel):
-    question_id: str = Field(pattern='^(attention|nearest)$')
+    question_id: str = Field(pattern='^(attention|nearest|high_zone)$')
     position_id: str = Field(pattern=ID_PATTERN)
     limit: int = Field(default=10, ge=1, le=10)
 

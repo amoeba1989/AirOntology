@@ -15,3 +15,10 @@ cu:nearest-policy-v1 a cu:AttentionRankingPolicy ;
  rdfs:comment "按距离升序，距离相同时按目标编号升序。"@zh ;
  cu:ruleVersion "nearest-policy-v1" ;
  cu:sortKeys (cu:distanceToPosition cu:targetIdentifier) .
+
+cu:high-zone-policy-v1 a cu:AttentionRankingPolicy ;
+ rdfs:label "高关注距离圈查询策略 V1"@zh ;
+ rdfs:comment "先筛选高关注距离等级，再按距离和目标编号排序。"@zh ;
+ cu:ruleVersion "high-zone-policy-v1" ;
+ cu:requiredDistanceLevel cu:HighAttention ;
+ cu:sortKeys (cu:distanceToPosition cu:targetIdentifier) .
