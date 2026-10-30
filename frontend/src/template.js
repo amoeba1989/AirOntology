@@ -3,7 +3,7 @@ export default `
   <header>
     <div class="brand-mark">A<span>O</span></div><div class="brand">AirOntology<small>无人机本体 · 观测与评估工作台</small></div>
     <span class="edition">{{target?.data_mode==='simulated'?'模拟数据':target?.data_mode==='operational'?'业务接入声明':target?'来源待核实':'本体演示'}}</span>
-    <nav class="view-switch" aria-label="工作台视图"><button :class="{active:viewMode==='screen'}" @click="changeView('screen')">态势大屏</button><button :class="{active:viewMode==='learning'}" @click="changeView('learning')">本体学习</button></nav>
+    <a href="/back" class="text-button">本体拓扑工作台 ↗</a><nav class="view-switch" aria-label="工作台视图"><button :class="{active:viewMode==='screen'}" @click="changeView('screen')">态势大屏</button><button :class="{active:viewMode==='learning'}" @click="changeView('learning')">本体学习</button></nav>
     <div class="header-right"><span class="status-dot" :class="{online:mode==='live'&&health?.mqtt.connected}"></span>{{health?.preview?'本地模拟预览':status}}<span class="divider"></span><button @click="openConfig" :disabled="mode!=='live'">阵地与规则配置</button></div>
   </header>
   <main>

@@ -45,10 +45,15 @@ jobs:
           fi
           "${AUTH[@]}" ssh "${OPT[@]}" -p "${ECS_PORT:-22}" "$ECS_USER@$ECS_HOST" 'bash -s' <<'REMOTE'
           set +e
+          uname -m
+          nproc
+          free -m
+          df -h /
+          uptime
           docker ps -a --format 'table {{.Names}}\t{{.Status}}'
           docker inspect -f 'app status={{.State.Status}} health={{if .State.Health}}{{.State.Health.Status}}{{end}} exit={{.State.ExitCode}}' airontology-app-1
           docker top airontology-app-1 -eo pid,etime,pcpu,pmem,comm
-          docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' airontology-app-1 airontology-fuseki-1
+          docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}'
           docker inspect -f '{{range .State.Health.Log}}{{.ExitCode}} {{.Output}}{{end}}' airontology-app-1 | tail -c 1200
           curl -sS --max-time 10 http://127.0.0.1:8092/api/health || true
           REMOTE

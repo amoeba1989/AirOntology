@@ -17,6 +17,7 @@ import LearningWorkbench from "./learning.js";
 import AgentPanel from "./agent-panel.js";
 import EvidenceWorkbench from "./evidence.js";
 import DeviceWorkbench from "./devices.js";
+import OntologyWorkbench from './ontology-workbench.js';
 import OntologyTopology from "./ontology-topology.js";
 // 用户提供的四类业务图标统一存放在 public/icons，业务关系和颜色仍由数据决定。
 const icons = Object.freeze({
@@ -26,7 +27,7 @@ const icons = Object.freeze({
   jammer: "/icons/jammer.png",
 });
 
-createApp({
+createApp(location.pathname.replace(/\/$/, '') === '/back' && !new URLSearchParams(location.search).has('legacy') ? OntologyWorkbench : {
   components: { LearningWorkbench, AgentPanel, EvidenceWorkbench, DeviceWorkbench, OntologyTopology },
   setup() {
     const deviceData=ref(null),deviceError=ref(''),deviceReadAt=ref(''),selectedDeviceId=ref('');
@@ -70,7 +71,7 @@ createApp({
     const viewMode = ref(routeView());
     async function changeView(value) {
       const path = value === 'learning' ? '/back' : '/';
-      if (location.pathname !== path) history.pushState({ view: value }, '', path);
+      if (location.pathname !== path) history.pushState({ view: value }, '', path + (value === 'learning' ? '?legacy=1' : ''));
       viewMode.value = value;
       await nextTick();
       map?.invalidateSize();
