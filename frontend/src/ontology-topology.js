@@ -7,7 +7,7 @@ const edge = (from, to, property, label, x, y) =>
   ({ from, to, property, label, x, y, kind: 'object' });
 
 // 仅投影接口已读到的 RDF 关系。ABox 随实时态势更新；TBox 描述静态模型。
-export function buildTopology({ target, assessment, position, device, schema = false }) {
+export function buildTopology({ target, assessment, position, device, schema = false, preview = false }) {
   if (device && device.kind !== 'uav') {
     const classId = device.kind === 'radar' ? 'RadarSensor' : 'Jammer';
     const className = device.kind === 'radar' ? '雷达设备' : '干扰器';
@@ -19,7 +19,7 @@ export function buildTopology({ target, assessment, position, device, schema = f
     if (schema || (device.deployed_at && position?.id === device.deployed_at)) {
       nodes.push(node('position', schema ? '阵地' : position.name, kind, 'Position',
         schema ? 'Position' : position.id, CU + (schema ? 'Position' : position.id), 20, 76,
-        '部署关系来自 MQTT 设备登记。'));
+        preview ? '部署关系来自本地模拟设备登记。' : '部署关系来自 MQTT 设备登记。'));
       edges.push(edge('entity', 'position', 'deployedAt', '部署于', 25, 46));
     }
     if (schema || device.state) {
@@ -65,7 +65,7 @@ export function buildTopology({ target, assessment, position, device, schema = f
       schema ? '每次评估保留当时的规则版本。' : `${assessment.thresholds?.join(' / ') || '—'} 米（高 / 中 / 低）`));
     edges.push(edge('assessment', 'rule', 'usedRule', '采用规则', 72, 72));
   }
-  return { nodes, edges, note: schema ? 'TBox：类与对象属性的定义。' : 'ABox：当前事实随 MQTT 观测更新；无人机不隶属于阵地。' };
+  return { nodes, edges, note: schema ? 'TBox：类与对象属性的定义。' : preview ? 'ABox：当前事实来自本地模拟观测；无人机不隶属于阵地。' : 'ABox：当前事实随 MQTT 观测更新；无人机不隶属于阵地。' };
 }
 
 // 箭头从 RDF 三元组的主语指向宾语，止于节点边界。
@@ -84,12 +84,12 @@ export function lineFor(edgeData, nodes) {
 }
 
 export default {
-  props: ['target', 'assessment', 'position', 'device', 'mode'],
+  props: ['target', 'assessment', 'position', 'device', 'mode', 'preview'],
   setup(props) {
     const tab = ref('abox'), selectedNode = ref('entity');
     const topology = computed(() => buildTopology({
       target: props.target, assessment: props.assessment, position: props.position,
-      device: props.device, schema: tab.value === 'tbox',
+      device: props.device, schema: tab.value === 'tbox', preview: props.preview,
     }));
     const active = computed(() => topology.value.nodes.find(n => n.key === selectedNode.value) || topology.value.nodes[0]);
     const lines = computed(() => topology.value.edges.map(e => lineFor(e, topology.value.nodes)).filter(Boolean));

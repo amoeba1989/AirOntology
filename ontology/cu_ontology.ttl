@@ -47,6 +47,7 @@ cu:SituationAnalysis a owl:Class ; rdfs:label "态势分析快照"@zh ; rdfs:com
 cu:RankedCandidate a owl:Class ; rdfs:label "排序候选记录"@zh ; rdfs:comment "某次分析中一架无人机的确定性排序结果与依据。"@zh .
 cu:sortKeys a owl:ObjectProperty ; rdfs:label "排序字段列表"@zh ; rdfs:domain cu:AttentionRankingPolicy .
 cu:levelOrder a owl:ObjectProperty ; rdfs:label "等级优先顺序"@zh ; rdfs:domain cu:AttentionRankingPolicy .
+cu:requiredDistanceLevel a owl:ObjectProperty ; rdfs:label "要求的距离等级"@zh ; rdfs:domain cu:AttentionRankingPolicy ; rdfs:range cu:DistanceLevel .
 cu:hasCandidate a owl:ObjectProperty ; rdfs:label "包含排序候选"@zh ; rdfs:domain cu:SituationAnalysis ; rdfs:range cu:RankedCandidate .
 cu:usedRankingPolicy a owl:ObjectProperty ; rdfs:label "采用排序策略"@zh ; rdfs:domain cu:SituationAnalysis ; rdfs:range cu:AttentionRankingPolicy .
 cu:analysisPosition a owl:ObjectProperty ; rdfs:label "分析针对的阵地"@zh ; rdfs:domain cu:SituationAnalysis ; rdfs:range cu:Position .

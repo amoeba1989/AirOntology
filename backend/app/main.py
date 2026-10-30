@@ -36,7 +36,7 @@ class QueryInput(BaseModel):
 
 
 class AgentQuestion(BaseModel):
-    question_id: str = Field(pattern='^(attention|nearest)$')
+    question_id: str = Field(pattern='^(attention|nearest|high_zone)$')
     position_id: str = Field(pattern=ID_PATTERN)
     limit: int = Field(default=10, ge=1, le=10)
 
@@ -245,6 +245,14 @@ def create_app(settings=None, store=None, enable_mqtt=True):
 
     def learning_model():
         return learning.model_graph(store, settings.ontology_dir)
+
+    @app.get('/api/ontology/topology')
+    def ontology_topology():
+        from .topology import topology_view
+        def read():
+            with store.lock:
+                return topology_view(store, settings.ontology_dir)
+        return safe(read)
 
     @app.get('/api/learning/dictionary')
     def dictionary():

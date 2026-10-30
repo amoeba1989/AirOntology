@@ -17,6 +17,7 @@ import LearningWorkbench from "./learning.js";
 import AgentPanel from "./agent-panel.js";
 import EvidenceWorkbench from "./evidence.js";
 import DeviceWorkbench from "./devices.js";
+import OntologyWorkbench from './ontology-workbench.js';
 import OntologyTopology from "./ontology-topology.js";
 // 用户提供的四类业务图标统一存放在 public/icons，业务关系和颜色仍由数据决定。
 const icons = Object.freeze({
@@ -26,7 +27,7 @@ const icons = Object.freeze({
   jammer: "/icons/jammer.png",
 });
 
-createApp({
+createApp(location.pathname.replace(/\/$/, '') === '/back' && !new URLSearchParams(location.search).has('legacy') ? OntologyWorkbench : {
   components: { LearningWorkbench, AgentPanel, EvidenceWorkbench, DeviceWorkbench, OntologyTopology },
   setup() {
     const deviceData=ref(null),deviceError=ref(''),deviceReadAt=ref(''),selectedDeviceId=ref('');
@@ -70,7 +71,7 @@ createApp({
     const viewMode = ref(routeView());
     async function changeView(value) {
       const path = value === 'learning' ? '/back' : '/';
-      if (location.pathname !== path) history.pushState({ view: value }, '', path);
+      if (location.pathname !== path) history.pushState({ view: value }, '', path + (value === 'learning' ? '?legacy=1' : ''));
       viewMode.value = value;
       await nextTick();
       map?.invalidateSize();
@@ -343,21 +344,21 @@ createApp({
       const thresholds = assessment.value?.thresholds || data.value.thresholds;
       if (point.value && showRanges.value)
         [...thresholds].reverse().forEach((radius, i) => {
-          const color = ["#d7aa76", "#efb77d", "#ff7f8d"][i];
+          const color = ["#56d99a", "#ffbd55", "#ff6675"][i];
           const circle = L.circle(displayPoint(point.value.lat, point.value.lon), {
             radius,
             color,
-            weight: i === 2 ? 1.5 : 1,
-            opacity: [.42,.55,.78][i],
-            dashArray: ["5 8", "4 6", null][i],
+            weight: 2.5,
+            opacity: .95,
+            dashArray: ["3 7", "9 5", null][i],
             fillColor: color,
-            fillOpacity: [.012,.018,.04][i],
+            fillOpacity: [.07,.09,.12][i],
             interactive: false,
           }).addTo(layers);
           L.marker([circle.getBounds().getNorth(), displayPoint(point.value.lat,point.value.lon)[1]], {
             interactive: false,
             icon: L.divIcon({
-              className: "range-label",
+              className: `range-label range-label-${["low", "medium", "high"][i]}`,
               html: `${radius}m · ${["低", "中", "高"][i]}关注`,
               iconSize: [124, 24],
               iconAnchor: [62, 12],

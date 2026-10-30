@@ -150,16 +150,16 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     else if(url === '/api/evidence/examples')json={devices:{id:'sample-radar',data_mode:'simulated'}};
     else if(url === '/api/evidence/devices'){evidenceCalls.push(opts);json={status:'saved'};}
     else if(url === '/api/evidence/validate')json={conforms:true,focus_count:12,result_count:0,results:[],report_ttl:'sh:ValidationReport'};
-    else if (url === '/api/agent/questions') json = {items:[{id:'attention',label:'哪些无人机最需关注？'},{id:'nearest',label:'哪些无人机距离阵地最近？'}],llm_configured:false};
+    else if (url === '/api/agent/questions') json = {items:[{id:'attention',label:'哪些无人机最需关注？'},{id:'nearest',label:'哪些无人机距离阵地最近？'},{id:'high_zone',label:'高关注距离圈内有哪些无人机？'}],llm_configured:false};
     else if (url === '/api/agent/ask') {
       const questionId=JSON.parse(opts.body).question_id;
       const policy=questionId==='nearest'
         ? {label:'最近距离排序策略 V1',description:'距离 → 目标编号'}
         : {label:'距离关注排序策略 V1',description:'等级 → 时间 → 距离'};
-      const messages=[['snapshot',{question_id:questionId,position:positions[0],policy,at,eligible:3,excluded:[],ttl:'cu:test a cu:SituationAnalysis .'}],
+      const messages=[['snapshot',{question_id:questionId,position:positions[0],policy,at,eligible:3,excluded:[],evidence:[{id:'E1',origin:'本体规则',subject:'<urn:policy>',predicate:'<urn:rule>',object:'<urn:distance>'}],ttl:'cu:test a cu:SituationAnalysis .'}],
         ['candidate',{rank:1,target_id:'drone002',name:'无人机002',level_label:'高关注',distance:80,eta_seconds:0,reason:'距离80米',timestamp:at}],
         ['candidate',{rank:2,target_id:'drone003',name:'无人机003',level_label:'中关注',distance:120,eta_seconds:null,reason:'距离120米',timestamp:at}],
-        ['explanation',{source:'rule',text:'这是规则说明，不是大模型回答。'}],['done',{}]];
+        ['explanation',{source:'rule',text:'这是规则说明，不是大模型回答。[E1]'}],['done',{}]];
       const bytes=new TextEncoder().encode(messages.map(([type,data])=>`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`).join(''));let i=0;
       return {ok:true,body:{getReader:()=>({read:async()=>i<bytes.length?{done:false,value:bytes.slice(i,i+=17)}:{done:true},cancel:async()=>{},releaseLock:()=>{}})}};
     }
@@ -357,8 +357,9 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     await until(() => doc.querySelector('[aria-label="选择无人机"]').value==='drone002');
     doc.querySelector('[aria-label="定位第2名 无人机003"]').click();
     await until(() => doc.querySelector('[aria-label="选择无人机"]').value==='drone003');
-    button('查看本次本体事实与排序策略').click();
+    doc.querySelector('[aria-label="查看证据 E1"]').click();
     await until(() => doc.querySelector('.agent-evidence pre')?.textContent.includes('SituationAnalysis'));
+    assert.ok(doc.querySelector('.agent-triples').textContent.includes('[E1]'));
     targets.forEach(t => { t.stale = true; });
     await wait(3100);
     await until(() => [...doc.querySelectorAll('.agent-notice')].some(el => el.textContent.includes('当前没有新观测')));

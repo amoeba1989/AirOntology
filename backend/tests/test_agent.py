@@ -85,7 +85,7 @@ def test_sse_cards_before_explanation_and_fixed_question_boundary(settings, stor
     for i in range(10):
         store.write_track(track(settings,f'drone{i:03}',40+i*20,now))
     client = TestClient(create_app(settings,store,enable_mqtt=False))
-    assert len(client.get('/api/agent/questions').json()['items']) == 2
+    assert len(client.get('/api/agent/questions').json()['items']) == 3
     response = client.post('/api/agent/ask',json={'question_id':'attention','position_id':'pos001'})
     assert response.status_code == 200 and 'text/event-stream' in response.headers['content-type']
     received = events(response)
@@ -116,6 +116,11 @@ def test_optional_deepseek_stream_and_failure_never_change_cards(settings, store
     assert any('deepseek' in part for part in result)
     assert len([p for p in result if p.startswith('event: candidate')])==1
     assert json.loads(requests[0]['messages'][1]['content'])['candidates'][0]['rank']==1
+    sent = json.loads(requests[0]['messages'][1]['content'])
+    assert sent['rdf_evidence'] == snapshot['evidence']
+    assert any(row['origin']=='观测、评估与规则快照' for row in sent['rdf_evidence'])
+    assert any(row['origin']=='本体规则' for row in sent['rdf_evidence'])
+    assert any(p.startswith('event: explanation_audit') and '"has_citations": false' in p for p in result)
     failed = asyncio.run(collect(httpx.MockTransport(lambda request:httpx.Response(401))))
     assert any(p.startswith('event: explanation_error') for p in failed)
     assert failed[-1].startswith('event: done')
@@ -132,9 +137,52 @@ def test_incomplete_model_stream_reported_as_incomplete(settings, store):
     assert any(p.startswith('event: explanation_error') for p in result)
 
 
+def test_model_citation_audit_reports_unknown_ids(settings, store):
+    store.write_track(track(settings,'first',30,datetime.now(timezone.utc)))
+    settings.deepseek_api_key = __import__('pydantic').SecretStr('test-secret')
+    snapshot = agent.build_analysis(store,settings,'nearest','pos001')
+    transport=httpx.MockTransport(lambda request:httpx.Response(200,text='data: '+json.dumps(
+        {'choices':[{'delta':{'content':'依据 [E1] 和 [E99999]。'}}]},ensure_ascii=False)+'\n\ndata: [DONE]\n\n'))
+    async def collect():
+        return [part async for part in agent.answer_events(snapshot,settings,transport=transport)]
+    result=asyncio.run(collect())
+    audit = next(json.loads(part.split('\ndata: ')[1]) for part in result if part.startswith('event: explanation_audit'))
+    assert audit['has_citations'] and audit['unknown'] == ['E99999']
+
+
 def test_empty_snapshot_skips_model(settings, store):
     client = TestClient(create_app(settings,store,enable_mqtt=False))
     response=client.post('/api/agent/ask',json={'question_id':'attention','position_id':'pos001'})
     received=events(response)
     assert not any(k=='candidate' for k,v in received)
     assert any(k=='notice' and '没有' in v['message'] for k,v in received)
+
+
+def test_high_zone_uses_rdf_level_rule_and_sends_bounded_related_evidence(settings, store):
+    now = datetime.now(timezone.utc)
+    for target, distance, age in [('inside', 50, 1), ('outside', 180, 1), ('stale', 30, 60)]:
+        store.write_track(track(settings, target, distance, now-timedelta(seconds=age)))
+    snapshot = agent.build_analysis(store, settings, 'high_zone', 'pos001')
+    assert [c['target_id'] for c in snapshot['candidates']] == ['inside']
+    assert snapshot['filtered_out'] == 1
+    assert [e['target_id'] for e in snapshot['excluded']] == ['stale']
+    statements = snapshot['evidence']
+    assert len(statements) <= 500
+    assert any(e['predicate'] == CU.requiredDistanceLevel.n3() and e['object'] == CU.HighAttention.n3() for e in statements)
+    assert any(e['predicate'] == CU.basedOnObservation.n3() for e in statements)
+    assert any(e['predicate'] == CU.highThreshold.n3() for e in statements)
+    assert not any(CU['outside'].n3() in (e['subject'], e['object']) for e in statements)
+    rdf = Graph().parse(data='\n'.join(f"{e['subject']} {e['predicate']} {e['object']} ." for e in statements), format='nt')
+    assert (CU['high-zone-policy-v1'], CU.requiredDistanceLevel, CU.HighAttention) in rdf
+    assessment = CU[snapshot['candidates'][0]['assessment_id']]
+    assert (assessment, CU.toPosition, CU.pos001) in rdf
+    assert (assessment, CU.basedOnObservation, CU[snapshot['candidates'][0]['observation_id']]) in rdf
+
+
+def test_high_zone_empty_result_does_not_claim_missing_observations(settings, store):
+    store.write_track(track(settings, 'outside', 180, datetime.now(timezone.utc)))
+    client = TestClient(create_app(settings,store,enable_mqtt=False))
+    received = events(client.post('/api/agent/ask',json={'question_id':'high_zone','position_id':'pos001'}))
+    snapshot = next(value for kind,value in received if kind=='snapshot')
+    assert snapshot['eligible'] == 0 and snapshot['filtered_out'] == 1
+    assert any(kind=='notice' and '没有符合高关注' in value['message'] for kind,value in received)
