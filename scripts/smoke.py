@@ -74,7 +74,7 @@ assert not invalid['conforms'] and invalid['result_count']>=3
 current=post('/api/learning/validation/current')
 assert current['conforms'] and current['focus_count']>0, current
 agent_questions=json.loads(get('/api/agent/questions'))
-assert {q['id'] for q in agent_questions['items']}=={'attention','nearest'}
+assert {q['id'] for q in agent_questions['items']}=={'attention','nearest','high_zone'}
 # CI never calls a paid model; production smoke can skip the stream if configured.
 if not agent_questions['llm_configured']:
     opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
