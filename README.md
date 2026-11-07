@@ -1,6 +1,12 @@
 # AirOntology · 无人机本体工作台
 
+![AirOntology：连接无人机态势、地理信息与知识图谱](docs/images/airontology-overview.png)
+
+> **让无人机态势看得见，让数据关系和判断依据讲得清。**
+
 AirOntology 是一个用于学习和演示无人机态势与知识图谱的项目。它将模拟设备消息、距离规则、RDF 本体和地图展示串成一条可追溯的数据链，帮助理解 **OWL / RDF、SPARQL、SHACL 与 GIS 前端如何协同工作**。
+
+项目把分散的目标、阵地、设备和观测组织成可查询的关系：你可以在地图上查看目标与距离，在拓扑中探索本体和实例，并沿着评估结果找到观测及规则依据。它适合无人机态势场景的原型验证、本体学习和演示。
 
 > 当前主要面向开发、学习和演示。默认航迹及设备数据是模拟数据；距离关注等级是阈值分级，不能直接解释为综合威胁、真实探测结果或违法判断。
 
@@ -130,6 +136,10 @@ CI 还会构建 Compose 服务并运行 `python scripts/smoke.py`。前端 DOM �
 需要排障时，手动运行 **ECS maintenance** 并选择 `diagnose`（只读诊断）、`recover`（重启服务并暂停模拟器）、`resume`（以 15 秒间隔恢复模拟器）或 `configure`（配置 DeepSeek）。操作互斥，使用现有 Secrets；`configure` 需要 DeepSeek Secret。
 
 ## 主要接口
+
+项目使用 FastAPI 自动生成交互式 Swagger UI：本地启动后打开 [http://localhost:8092/docs](http://localhost:8092/docs)，线上演示可访问 [Swagger 接口文档](http://182.92.185.115:8092/docs)。也可通过 `/redoc` 查看另一种文档排版，通过 `/openapi.json` 获取机器可读的接口定义；端口以实际运行配置为准。
+
+在 Swagger 中展开接口可查看参数、请求结构和响应模型。`GET` 通常用于读取数据；`POST`、`PUT` 和 `DELETE` 可能产生实际修改，请先确认接口用途，再使用 “Try it out”。当前线上接口未配置登录鉴权，不建议在公开环境中提交敏感数据或执行修改操作。
 
 | 接口 | 用途 |
 | --- | --- |
