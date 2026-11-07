@@ -1,179 +1,97 @@
 # AirOntology · 无人机本体工作台
 
-通过“MQTT观测 → Python计算 → RDF事实 → Fuseki查询 → Leaflet展示”理解本体。第二版把无人机、观测、评估、阵地和规则分开建模，不启用自动推理。
+AirOntology 是一个用于学习和演示无人机态势与知识图谱的项目。它将模拟设备消息、距离规则、RDF 本体和地图展示串成一条可追溯的数据链，帮助理解 **OWL / RDF、SPARQL、SHACL 与 GIS 前端如何协同工作**。
 
-V2.1 新增[本体学习工作台](docs/本体学习工作台.md)：中文术语词典、Protégé Turtle 模型隔离导入、五个 SPARQL 只读查询与地图高亮、实时 RDF / 编辑样例的 SHACL 中文校验报告。运行依赖新增 pySHACL，仍使用原有 Fuseki，不增加数据库服务。
+> 当前主要面向开发、学习和演示。默认航迹及设备数据是模拟数据；距离关注等级是阈值分级，不能直接解释为综合威胁、真实探测结果或违法判断。
 
-V2.2 衔接项目内的[智能态势问答讨论](docs/智能态势问答与项目讨论衔接.md)：全屏态势大屏、AI 圆球、预设问题、受本体策略约束的 Python 排序与趋势指标、流式候选卡片及地图定位。可选接入 DeepSeek 解释；未配置 Key 时明确展示规则演示模式。当时默认模拟 10 架；当前版本默认值见下文。
+## 功能概览
 
-本地开发中的[本体证据问答](docs/本体证据问答本地预览.md)将相关 RDF 三元组和规则随结果提供给模型，并支持按引用编号查看证据；提供独立内存 RDF 预览方式。
+- **态势地图**：展示无人机、阵地、设备、轨迹及距离圈；按阵地查看距离评估，支持历史回放和运行参数配置。
+- **本体拓扑工作台**：在 `/back` 查看 TBox 类与继承、ABox 实例关系，以及类和实例的类型对照；支持搜索、聚焦邻居、查看属性、来源和 SHACL 约束。拓扑来自业务模型及有界 RDF 快照，不进行 OWL 自动推理。
+- **本体学习与校验**：查看术语和 Turtle 定义、隔离导入学习模型、运行预设 SPARQL 查询、查看 SHACL 校验报告。原学习工具可从拓扑工作台进入。
+- **智能态势问答**：使用预设问题和本体策略筛选、排序目标，展示结果依据及 RDF 证据；可选使用 DeepSeek 解释。没有配置密钥时使用规则结果。
+- **设备与多源证据**：接收设备登记、遥测及原始观测，展示设备与阵地关系，并记录来源、不确定性和待核实判断。
 
-V2.3 新增[多源证据登记](docs/多源证据增量实现说明.md)：四类设备观测、三层未确认判断、来源与不确定性追溯、独立证据图与 SHACL 校验。尚未接入融合、识别或区域包含算法。
+证据登记不等于自动完成多源融合、身份识别或区域包含判断。更多范围和限制见[多源证据说明](docs/多源证据增量实现说明.md)。
 
-V2.4 新增[四类对象与 MQTT 模拟接入](docs/四类设备与MQTT模拟接入.md)：登记无人机、雷达、干扰器及其显式阵地归属；接收分块态势、查看原始消息与 RDF 映射；提供设备地图、部署关系 SPARQL 和 SHACL 校验。暂不生成探测或干扰因果关系。
+## 架构
 
-演示大屏采用地图主导的深色三栏布局：左侧区分阵地所属设备与独立无人机目标，中央显示轨迹与距离圈，右侧展示当前关注、数据处理链及本体学习入口。本地 Compose 默认16架合成航迹，每2秒通过MQTT上报；ECS部署配置默认10架，以照顾小规格服务器。航迹含接近、掠过、巡航与交叉返回等连续路线，并以确定性种子产生个体差异。轨迹是演示数据，不是业务实测、预测或雷达探测结论。高德卫星影像需要在 `.env` 中配置 JS API key 和安全码；默认仍为标准底图，详见[配置说明](docs/高德卫星底图与状态排查.md)。
+```text
+模拟器 / MQTT 数据源
+        │ 观测与设备消息
+        ▼
+  FastAPI + Python ── 距离评估、规则、校验与问答
+        │
+        ▼
+ Apache Jena Fuseki ── RDF 命名图与 SPARQL
+        │
+        ▼
+ Vue 3 + Leaflet ── 态势地图、本体拓扑与学习工具
+```
 
-使用与数据边界详见[态势大屏与航迹模拟](docs/态势大屏与航迹模拟.md)。
+模型定义位于 [`ontology/`](ontology/)，实时数据与有界历史由 Fuseki 保存。业务逻辑、数据模型和设备处理位于 [`backend/app/`](backend/app/)，前端位于 [`frontend/`](frontend/)，模拟器位于 [`simulator/`](simulator/)。
 
-学习技术栈请从[本体技术栈与代码实现指南](docs/本体技术栈与代码实现指南.md)开始，按一条数据的实际流转理解 RDF、OWL、SPARQL、Fuseki 与 SHACL。
+| 技术 | 作用 |
+| --- | --- |
+| Vue 3、Vite、Leaflet | 页面、交互和地图 |
+| FastAPI、Pydantic、RDFLib | 接口、数据校验和 RDF 处理 |
+| Apache Jena Fuseki、SPARQL | RDF 存储与查询 |
+| OWL / RDFS、SHACL | 业务模型定义与数据约束 |
+| Mosquitto、MQTT | 设备和观测消息接入 |
+| Docker Compose、GitHub Actions | 本地运行、测试与 ECS 部署 |
 
-## 第二版能做什么
+## 快速开始
 
-- 本地默认模拟16架、ECS默认10架无人机，首次启动默认配置2个固定阵地；每架目标对每个阵地独立评估。小规格ECS可在部署环境文件设置 `DEMO_TARGET_COUNT=8` 或 `10`，降低写入与历史占用。
-- 点击阵地查看无人机距离排序，点击无人机查看各阵地评估。
-- 查看评估依据：原始观测、来源、时间、当时阵地坐标、规则版本和阈值。
-- 查看中文本体结构、定义TTL和选中目标实例TTL。
-- 加载选中目标的有界历史，拖动时间轴、播放、暂停、返回实时。
-- 页面维护阵地、阈值、过期时间和历史保留数量；配置持久化，旧评估不改写。
-
-**距离关注等级只表示距离阈值分级，不是综合威胁判断。**
-
-## GitHub Actions部署ECS
-
-已提供手动部署工作流 **Deploy AirOntology to ECS**：在GitHub完成镜像构建与测试，通过SSH上传三个最终镜像，ECS导入后启动。服务器无需访问Docker Hub拉取镜像。支持架构检查、停写备份、健康检查和失败后尝试恢复上一发布。
-
-先按照 [ECS自动部署说明](docs/ECS自动部署.md) 配置4项GitHub Secrets，再从Actions页面触发。
-
-## 一、运行和更新
-
-需要Docker Desktop（Mac）或Docker Engine及Compose（Linux）。首次构建需要访问Docker Hub、npm、PyPI及Apache归档站。
-
-**本地一键启动**：macOS 在终端运行 `./start-local.sh`，也可以在 Finder 双击 `start-local.command`；Windows 双击 `start-local.bat`；Linux 运行 `./start-local.sh`。首次会复制 `.env.example` 为 `.env`，以后保留已有配置。脚本会尝试启动 Docker Desktop，构建镜像、等待服务健康、重建并启动模拟器，然后打开 `http://localhost:8092`（自定义端口以脚本输出为准）。首次构建仍需网络可访问镜像和依赖源。
-
-停止并保留历史数据：Mac/Linux 运行 `./start-local.sh stop`，Windows 运行 `start-local.bat stop`。将 `stop` 换成 `status` 查看容器状态，换成 `logs` 跟踪应用及模拟器日志。停止不会删除 Docker 数据卷。
-
-下面是与脚本等价的手动命令，适合逐步排查：
+需要 Docker Desktop 或 Docker Engine + Compose；首次构建需要访问镜像与依赖源。
 
 ```bash
-git clone git@github.com:amoeba1989/AirOntology.git
+git clone https://github.com/amoeba1989/AirOntology.git
 cd AirOntology
-cp .env.example .env
-docker compose build
-docker compose up -d --wait
-docker compose --profile demo up -d simulator
+./start-local.sh
 ```
 
-Mac浏览器打开 `http://localhost:8092`。ECS默认仅监听本机，可使用SSH隧道或参考 `deploy/nginx.conf.example` 配置独立域名根路径反向代理。
+macOS 也可以双击 `start-local.command`，Windows 可运行 `start-local.bat`。脚本首次运行会从 `.env.example` 创建 `.env`，构建并启动服务与模拟器。打开：
 
-已有第一版项目：
+- 态势地图：<http://localhost:8092/>
+- 本体拓扑工作台：<http://localhost:8092/back>
+- API 文档：<http://localhost:8092/docs>
+
+如果修改了端口，以启动脚本输出为准。常用操作：
 
 ```bash
-cd AirOntology
-# 如有自行修改，先提交或妥善保存修改，再拉取。
-git pull --ff-only
-docker compose build
-docker compose up -d --wait
-docker compose --profile demo up -d --force-recreate simulator
+./start-local.sh status  # 查看状态
+./start-local.sh logs    # 查看日志
+./start-local.sh stop    # 停止服务，保留数据卷
 ```
 
-本次同时修复Fuseki首次启动时数据库目录未创建的问题，请重建Fuseki和应用镜像。
+本地 Compose 默认模拟 16 架目标、每 2 秒更新一次；ECS 配置默认 10 架。实际运行值可能由环境配置覆盖。参数见 [`.env.example`](.env.example)；高德底图配置见[说明](docs/高德卫星底图与状态排查.md)。
 
-第一次升级前建议停止服务并备份数据。第一版已有最新位置会自动补齐观测和评估，无法恢复第一版未保存的历史。详情见 [第二版说明](docs/第二版说明.md)。不要执行 `down -v`，除非确实要删除数据。
+暂时无法启动 Docker 时，可使用[内存 RDF 本地预览](docs/本体证据问答本地预览.md)。预览不连接 Fuseki、MQTT 或 ECS，退出后数据清空。
 
-Docker拉取成功但构建报认证失败/TLS超时属于构建网络问题，本次功能升级不保证解决该环境问题。Mac应在Docker Desktop配置可用代理；终端代理测试不能完全代表构建器网络。
+## 本体与数据范围
 
-### 操作命令
+TBox 定义业务类、属性及约束；ABox 是目标、阵地、观测和评估等实例事实。典型关系为：
 
-```bash
-# 状态和日志
-docker compose ps -a
-docker compose logs --tail=100 app simulator
-
-# 暂停/恢复真实消息模拟；页面回放暂停不会停止MQTT接入
-docker compose --profile demo stop simulator
-docker compose --profile demo up -d simulator
-
-# 只停止服务，保留数据
-docker compose --profile demo down
-
-# 完整服务验收（本机有Python时）
-python3 scripts/smoke.py
+```text
+无人机 ──最新观测──▶ 观测
+   └──当前评估──▶ 评估 ──针对──▶ 阵地
+                        ├──依据──▶ 观测
+                        └──采用──▶ 规则快照
 ```
 
-默认服务端口8092。配置界面没有登录鉴权，适用于本机或受限演示环境，不应直接向不受控访问者开放配置接口。
-
-## 二、建议演示顺序
-
-1. 在地图和对象下拉框选择无人机001，再选择一号、二号阵地，对比独立评估。
-2. 查看选中阵地的距离排序，点击“查看评估”。解释面板会锁定该条记录。
-3. 对照“观测标识 → 评估记录 → 阵地 → 规则版本”，说明结果来源。
-4. 切换中文结构和TTL，认识Observation（观测）、Assessment（评估）、DistanceRule（规则）。
-5. 运行约20秒后点击“加载选中目标历史”，播放或拖动时间轴；此时实时接入仍继续。
-6. 返回实时，在配置中调整阵地或阈值；下一条观测采用新版本，旧评估保留原坐标和规则。
-7. 停止模拟器，超过配置的过期时间后页面显示过期。
-
-回放按选中目标保留的观测时间推进，在每个时间点显示各目标当时最近的一条观测。不存在该时刻之前的保留观测时，该目标不会出现。所有回放接口均为只读，不会重新发布MQTT消息。
-
-## 三、本体模型与数据
-
-| 类 | 中文含义 |
+| 命名图 | 内容 |
 | --- | --- |
-| BlueDevice | 持续存在的无人机目标 |
-| Position | 阵地 |
-| Observation | 某来源在某时刻上报的观测 |
-| Assessment | 一条观测针对一个阵地的距离与等级评估 |
-| DistanceRule | 使用的规则快照 |
-| DistanceLevel | 高、中、低关注和阈值外四种等级的类别 |
+| `urn:airontology:schema` | 业务模型及基础实例 |
+| `urn:airontology:config` | 当前配置和阵地 |
+| `urn:airontology:state` | 最新状态及观测、评估指针 |
+| `urn:airontology:history` | 有界历史观测、评估与规则快照 |
+| `urn:airontology:devices` / `urn:airontology:evidence` | 设备和多源证据 |
 
-无人机通过latestObservation关联最新观测，通过latestAssessment关联多个当前评估；评估通过basedOnObservation、toPosition、usedRule分别关联观测、阵地和规则。
+拓扑页面读取当前状态、设备、配置、证据和关联的最新观测及评估，最多读取 4000 行，**不代表完整历史或数据库总量**；页面快照需手动刷新。历史默认每个目标保留 300 条观测，可配置，不是永久审计存储。详见[技术栈与实现指南](docs/本体技术栈与代码实现指南.md)。
 
-| Fuseki命名图 | 用途 |
-| --- | --- |
-| urn:airontology:schema | 静态本体定义与等级实例 |
-| urn:airontology:config | 当前运行配置及阵地 |
-| urn:airontology:state | 无人机最新状态和观测/评估指针 |
-| urn:airontology:history | 有界观测、评估及不可变规则快照 |
+## 开发与测试
 
-每目标默认保留300条观测，可在10～1000之间配置。清理观测时同步清理其评估，未引用的规则也清理。不是永久审计存储，目标持续上报时默认约保留5分钟。
-
-规则版本是完整配置的内容摘要；位置、阈值、过期时间或保留数量变化均可能产生新版本。旧评估保存计算时的阵地名称、坐标、阈值和观测来源。配置只作用于下一条有效新观测，等待期间显示“旧配置/待新观测”。
-
-`.env`中的阵地和阈值仅在数据库没有运行配置时作为初始值。后续以页面持久化配置为准，重启不会用环境变量覆盖它。
-
-## 四、MQTT报文
-
-主题：`counteruav/track/blue`。
-
-```json
-{
-  "target_id": "drone001",
-  "name": "无人机001",
-  "source": "固定航线模拟器",
-  "lon": 116.4074,
-  "lat": 39.9042,
-  "speed": 12.5,
-  "timestamp": "2026-10-21T10:30:00Z"
-}
-```
-
-name与source可省略。经纬度为WGS84，速度单位为米/秒，时间必须带时区，实际消息请使用当前时间。拒绝非法数值、过远未来时间、重复及乱序覆盖；业务编号不能与阵地编号和本体保留标识冲突。
-
-地图底图默认OpenStreetMap，无法访问时仍显示对象和网格背景。通过 `.env` 中的 `VITE_TILE_URL` 和 `VITE_TILE_ATTRIBUTION` 更换有使用权限的WGS84兼容瓦片，再重建应用镜像。国内GCJ-02底图不能直接与WGS84坐标混用。
-
-## 五、接口
-
-| 接口 | 用途 |
-| --- | --- |
-| GET /api/health | 服务健康与消息处理状态 |
-| GET /api/config | 当前配置和版本 |
-| PUT /api/config | 携带expected_version保存配置，冲突返回409 |
-| GET /api/situation | 当前多目标多阵地态势 |
-| GET /api/situation?at=时间 | 指定时间的历史快照；时间需URL编码 |
-| GET /api/targets/{id} | 指定目标，可加at参数 |
-| GET /api/targets/{id}/ttl | 目标关联实例TTL，可加at参数 |
-| GET /api/assessments/{id} | 评估及观测、规则依据 |
-| GET /api/assessments/{id}/ttl | 单条评估关联事实TTL |
-| GET /api/history?target_id=编号&limit=300 | 保留的观测和评估，时间升序 |
-| GET /api/ontology | 中文本体结构 |
-| GET /api/ontology/ttl | 静态本体TTL |
-| GET /docs | FastAPI交互接口文档 |
-
-时间参数示例：`2026-10-21T10%3A30%3A00Z`，前端自动编码。
-
-## 六、本地开发与测试
-
-Python 3.12、Node.js 22。Compose运行依赖服务：
+项目 CI 使用 Python 3.12 和 Node.js 22。可先启动开发依赖，再分别运行后端和前端：
 
 ```bash
 docker compose -f compose.yaml -f compose.dev.yaml up -d mqtt fuseki
@@ -183,24 +101,61 @@ pip install -r backend/requirements-dev.txt
 PYTHONPATH=backend python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-新终端分别运行 `python simulator/main.py` 与前端：
+另开终端：
 
 ```bash
+python simulator/main.py
+# 再开一个终端
 cd frontend
 npm ci
 npm run dev
 ```
 
-测试：
+运行测试与构建：
 
 ```bash
-# 仓库根目录
 PYTHONPATH=backend python -m pytest backend/tests -q
-cd frontend
-npm test
-npm run build
+npm --prefix frontend test
+npm --prefix frontend run build
 ```
 
-前端自动测试采用模拟API与DOM环境，验证交互，不代替真实浏览器视觉验收。后端用RDFLib执行实际SPARQL进行测试，并另行与真实Fuseki联调。应用使用单Uvicorn worker，配置写入和MQTT处理在进程内串行协调；不是多实例部署方案。
+CI 还会构建 Compose 服务并运行 `python scripts/smoke.py`。前端 DOM 测试不能替代真实浏览器的视觉检查。
 
-具体学习说明见 [本体学习说明](docs/本体学习说明.md)，升级和限制见 [第二版说明](docs/第二版说明.md)。
+## ECS 部署
+
+通过 GitHub Actions 的 **Deploy AirOntology to ECS** 手动部署 `main`：工作流先测试、构建和验证镜像，再经 SSH 上传；部署脚本包含备份、健康检查及失败恢复步骤。首次配置、所需 Secrets、架构选择和恢复方式见 [ECS 自动部署说明](docs/ECS自动部署.md)。
+
+部署使用 GitHub `main`，不等同于 Mac 上当前分支的未合并改动。部署后应查看 Actions 运行结果与 `/api/health`，再检查实际页面。
+
+## 主要接口
+
+| 接口 | 用途 |
+| --- | --- |
+| `GET /api/health` | 服务健康状态 |
+| `GET /api/situation`、`GET /api/history` | 当前态势与有界历史 |
+| `GET /api/config`、`PUT /api/config` | 读取与更新运行配置 |
+| `GET /api/ontology/topology` | 本体及实例拓扑快照 |
+| `GET /api/learning/queries`、`POST /api/learning/query` | 预设只读查询 |
+| `POST /api/learning/validation/current` | 当前事实 SHACL 校验 |
+| `GET /api/devices`、`GET /api/evidence` | 设备与证据 |
+| `GET /api/agent/questions`、`POST /api/agent/ask` | 预设问题与流式回答 |
+
+完整请求结构以运行中的 `/docs` 为准。
+
+## 使用边界与安全
+
+- 配置界面及接口目前没有登录鉴权，适合本机或受控演示环境；对外提供服务前应配置认证和访问控制。
+- 模拟航迹、设备状态和演示证据不能当作真实业务数据。地图坐标转换及卫星底图配置见对应文档。
+- DeepSeek 是可选功能；启用后，相关事实和证据会发送给所配置的模型服务。模型文字不等于经过验证的推理结论。
+- 不要将 `.env`、API 密钥、SSH 私钥或服务器密码提交到仓库。停止服务请使用脚本或 `docker compose down`；`down -v` 会删除数据卷。
+
+## 文档索引
+
+- [本体技术栈与代码实现指南](docs/本体技术栈与代码实现指南.md)
+- [态势大屏与航迹模拟](docs/态势大屏与航迹模拟.md)
+- [本体学习工作台](docs/本体学习工作台.md)
+- [本体证据问答](docs/本体证据问答本地预览.md)
+- [四类设备与 MQTT 模拟接入](docs/四类设备与MQTT模拟接入.md)
+- [多源证据增量实现](docs/多源证据增量实现说明.md)
+- [ECS 自动部署](docs/ECS自动部署.md)
+- [后续迭代路线](docs/后续迭代路线.md)
