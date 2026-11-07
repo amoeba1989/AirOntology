@@ -174,7 +174,7 @@ def test_demo_routes_are_repeatable_continuous_and_change_attention(settings):
     registry=make_registry(settings,'route-test',count=16)
     assert len(registry.devices)==20
     assert all(not device.deployed_at for device in registry.devices[:16])
-    assert len({d.parameters['demo_route_profile'] for d in registry.devices[:16]})==4
+    assert len({d.parameters['demo_route_profile'] for d in registry.devices[:16]})==6
     paths=[]
     for i in range(16):
         anchor=positions[i%len(positions)]

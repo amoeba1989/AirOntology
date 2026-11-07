@@ -18,7 +18,7 @@ def main():
     def on_disconnect(client,userdata,flags,reason_code,properties):connected.clear()
     client.on_connect=on_connect;client.on_disconnect=on_disconnect;client.reconnect_delay_set(1,10)
     client.connect_async(settings.mqtt_host,settings.mqtt_port,30);client.loop_start()
-    count=max(1,min(100,int(os.getenv('DEMO_TARGET_COUNT','16'))))
+    count=max(1,min(100,int(os.getenv('DEMO_TARGET_COUNT','20'))))
     interval=max(1,min(30,float(os.getenv('DEMO_INTERVAL_SECONDS','2'))))
     registry=make_registry(settings,uuid4().hex,count)
     tick=0
