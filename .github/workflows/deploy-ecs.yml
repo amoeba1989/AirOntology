@@ -10,7 +10,7 @@ on:
         default: amd64
         required: true
       run_simulator:
-        description: 部署后启动三架无人机模拟器
+        description: 部署后启动无人机模拟器（数量由服务器配置决定）
         type: boolean
         default: true
 permissions:
