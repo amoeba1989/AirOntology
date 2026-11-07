@@ -345,7 +345,7 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     await until(() => !doc.querySelector('.validation-report'));
     button('校验编辑器样例').click();
     await until(() => doc.querySelector('.validation-report h3')?.textContent.includes('校验通过'));
-    button('态势大屏').click();
+    button('态势地图').click();
     await until(() => doc.querySelector('.workspace.screen'));
     assert.equal(doc.querySelector('.agent-dialog'),null);
     doc.querySelector('[aria-label="打开智能态势问答"]').click();

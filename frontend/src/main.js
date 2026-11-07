@@ -393,7 +393,7 @@ createApp(location.pathname.replace(/\/$/, '') === '/back' && !new URLSearchPara
             displayPoint(target.value.lat, target.value.lon),
             displayPoint(a.position_lat, a.position_lon),
           ],
-          { color: a.color, weight: 2, dashArray: "6 7" },
+          { color: "#f0be73", weight: 2, dashArray: "6 7" },
         )
           .addTo(layers)
           .bindTooltip(`${a.distance.toFixed(1)} 米`, {

@@ -22,6 +22,7 @@ from . import learning
 from . import agent
 from . import evidence
 from . import telemetry
+from .api_docs import describe_routes
 from pydantic import ValidationError
 
 
@@ -30,15 +31,19 @@ class TurtleInput(BaseModel):
 
 
 class QueryInput(BaseModel):
-    query_id: str = Field(pattern='^(current|nearby|evidence|history|graphs)$')
-    target_id: str | None = Field(default=None, pattern=ID_PATTERN)
-    position_id: str | None = Field(default=None, pattern=ID_PATTERN)
+    query_id: str = Field(pattern='^(current|nearby|evidence|history|graphs)$', description='预设查询编号；可先调用查询目录查看所需参数。', examples=['nearby'])
+    target_id: str | None = Field(default=None, pattern=ID_PATTERN, description='目标编号，部分查询必填。')
+    position_id: str | None = Field(default=None, pattern=ID_PATTERN, description='阵地编号，nearby 查询必填。', examples=['pos001'])
+
+    model_config = {'json_schema_extra': {'examples': [{'query_id': 'nearby', 'position_id': 'pos001'}]}}
 
 
 class AgentQuestion(BaseModel):
-    question_id: str = Field(pattern='^(attention|nearest|high_zone)$')
-    position_id: str = Field(pattern=ID_PATTERN)
-    limit: int = Field(default=10, ge=1, le=10)
+    question_id: str = Field(pattern='^(attention|nearest|high_zone)$', description='预设问题编号，可通过问题目录查询。')
+    position_id: str = Field(pattern=ID_PATTERN, description='要分析的阵地编号。')
+    limit: int = Field(default=10, ge=1, le=10, description='最多返回的候选目标数。')
+
+    model_config = {'json_schema_extra': {'examples': [{'question_id': 'attention', 'position_id': 'pos001', 'limit': 10}]}}
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s %(message)s')
 
@@ -439,6 +444,7 @@ def create_app(settings=None, store=None, enable_mqtt=True):
             return FileResponse(static_dir/'index.html')
 
         app.mount('/',StaticFiles(directory=static_dir,html=True),name='frontend')
+    describe_routes(app)
     return app
 
 
