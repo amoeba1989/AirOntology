@@ -123,9 +123,11 @@ CI 还会构建 Compose 服务并运行 `python scripts/smoke.py`。前端 DOM �
 
 ## ECS 部署
 
-通过 GitHub Actions 的 **Deploy AirOntology to ECS** 手动部署 `main`：工作流先测试、构建和验证镜像，再经 SSH 上传；部署脚本包含备份、健康检查及失败恢复步骤。首次配置、所需 Secrets、架构选择和恢复方式见 [ECS 自动部署说明](docs/ECS自动部署.md)。
+日常使用两条 GitHub Actions：**Verify AirOntology** 在向 `main` 提交 PR 时检查代码（也可手动运行）；**Deploy AirOntology to ECS** 手动部署 `main`。部署时：工作流先测试、构建和验证镜像，再经 SSH 上传；部署脚本包含备份、健康检查及失败恢复步骤。首次配置、所需 Secrets、架构选择和恢复方式见 [ECS 自动部署说明](docs/ECS自动部署.md)。
 
 部署使用 GitHub `main`，不等同于 Mac 上当前分支的未合并改动。部署后应查看 Actions 运行结果与 `/api/health`，再检查实际页面。
+
+需要排障时，手动运行 **ECS maintenance** 并选择 `diagnose`（只读诊断）、`recover`（重启服务并暂停模拟器）、`resume`（以 15 秒间隔恢复模拟器）或 `configure`（配置 DeepSeek）。操作互斥，使用现有 Secrets；`configure` 需要 DeepSeek Secret。
 
 ## 主要接口
 

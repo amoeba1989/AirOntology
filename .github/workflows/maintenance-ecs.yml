@@ -1,0 +1,223 @@
+name: ECS maintenance
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: '诊断（只读）/ 恢复服务（暂停模拟器）/ 恢复模拟器（设置15秒间隔）/ 配置DeepSeek'
+        type: choice
+        options: [diagnose, recover, resume, configure]
+        default: diagnose
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: airontology-ecs-production
+  cancel-in-progress: false
+jobs:
+  diagnose:
+    if: github.ref == 'refs/heads/main' && inputs.action == 'diagnose'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Install SSH password helper
+        run: |
+          if ! command -v sshpass >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y sshpass
+          fi
+      - name: Inspect ECS services
+        env:
+          ECS_HOST: ${{ secrets.ECS_HOST }}
+          ECS_USER: ${{ secrets.ECS_USER }}
+          ECS_SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
+          ECS_PASSWORD: ${{ secrets.ECS_PASSWORD }}
+          ECS_KNOWN_HOSTS: ${{ secrets.ECS_KNOWN_HOSTS }}
+          ECS_PORT: ${{ vars.ECS_PORT }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          DIR=$(mktemp -d)
+          trap 'rm -rf "$DIR"' EXIT
+          printf '%s\n' "$ECS_KNOWN_HOSTS" > "$DIR/known_hosts"
+          OPT=(-o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$DIR/known_hosts" -o ConnectTimeout=20)
+          AUTH=()
+          if [[ -n "${ECS_SSH_KEY:-}" ]]; then
+            printf '%s\n' "$ECS_SSH_KEY" > "$DIR/key"
+            chmod 600 "$DIR/key"
+            OPT+=(-i "$DIR/key" -o BatchMode=yes -o IdentitiesOnly=yes)
+          else
+            export SSHPASS="$ECS_PASSWORD"
+            AUTH=(sshpass -e)
+            OPT+=(-o BatchMode=no -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive -o NumberOfPasswordPrompts=1)
+          fi
+          "${AUTH[@]}" ssh "${OPT[@]}" -p "${ECS_PORT:-22}" "$ECS_USER@$ECS_HOST" 'bash -s' <<'REMOTE'
+          set +e
+          uname -m
+          nproc
+          free -m
+          df -h /
+          uptime
+          docker ps -a --format 'table {{.Names}}\t{{.Status}}'
+          docker inspect -f 'app status={{.State.Status}} health={{if .State.Health}}{{.State.Health.Status}}{{end}} exit={{.State.ExitCode}}' airontology-app-1
+          docker top airontology-app-1 -eo pid,etime,pcpu,pmem,comm
+          docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}'
+          docker inspect -f '{{range .State.Health.Log}}{{.ExitCode}} {{.Output}}{{end}}' airontology-app-1 | tail -c 1200
+          curl -sS --max-time 10 http://127.0.0.1:8092/api/health || true
+          REMOTE
+  recover:
+    if: github.ref == 'refs/heads/main' && inputs.action == 'recover'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Install SSH password helper
+        run: |
+          if ! command -v sshpass >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y sshpass
+          fi
+      - name: Recover datastore and app
+        env:
+          ECS_HOST: ${{ secrets.ECS_HOST }}
+          ECS_USER: ${{ secrets.ECS_USER }}
+          ECS_SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
+          ECS_PASSWORD: ${{ secrets.ECS_PASSWORD }}
+          ECS_KNOWN_HOSTS: ${{ secrets.ECS_KNOWN_HOSTS }}
+          ECS_PORT: ${{ vars.ECS_PORT }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          DIR=$(mktemp -d)
+          trap 'rm -rf "$DIR"' EXIT
+          printf '%s\n' "$ECS_KNOWN_HOSTS" > "$DIR/known_hosts"
+          OPT=(-o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$DIR/known_hosts" -o ConnectTimeout=20 -o ServerAliveInterval=20 -o ServerAliveCountMax=6)
+          AUTH=()
+          if [[ -n "${ECS_SSH_KEY:-}" ]]; then
+            printf '%s\n' "$ECS_SSH_KEY" > "$DIR/key"
+            chmod 600 "$DIR/key"
+            OPT+=(-i "$DIR/key" -o BatchMode=yes -o IdentitiesOnly=yes)
+          else
+            export SSHPASS="$ECS_PASSWORD"
+            AUTH=(sshpass -e)
+            OPT+=(-o BatchMode=no -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive -o NumberOfPasswordPrompts=1)
+          fi
+          "${AUTH[@]}" ssh "${OPT[@]}" -p "${ECS_PORT:-22}" "$ECS_USER@$ECS_HOST" 'bash -s' <<'REMOTE'
+          set -Eeuo pipefail
+          echo 'Pausing simulator and application'
+          docker stop airontology-simulator-1 airontology-app-1
+          echo 'Restarting Fuseki'
+          docker restart airontology-fuseki-1
+          for n in $(seq 1 60); do
+            state=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' airontology-fuseki-1)
+            if [[ "$state" == healthy ]]; then break; fi
+            sleep 10
+          done
+          [[ "$(docker inspect -f '{{.State.Health.Status}}' airontology-fuseki-1)" == healthy ]] || { echo 'Fuseki remains unhealthy'; exit 1; }
+          echo 'Restarting application'
+          docker start airontology-app-1
+          for n in $(seq 1 90); do
+            state=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' airontology-app-1)
+            if [[ "$state" == healthy ]]; then break; fi
+            sleep 10
+          done
+          [[ "$(docker inspect -f '{{.State.Health.Status}}' airontology-app-1)" == healthy ]] || { echo 'Application remains unhealthy'; exit 1; }
+          echo 'ECS application recovered; simulator remains paused to protect datastore'
+          REMOTE
+  resume:
+    if: github.ref == 'refs/heads/main' && inputs.action == 'resume'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Install SSH password helper
+        run: |
+          if ! command -v sshpass >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y sshpass
+          fi
+      - name: Resume demo observations
+        env:
+          ECS_HOST: ${{ secrets.ECS_HOST }}
+          ECS_USER: ${{ secrets.ECS_USER }}
+          ECS_SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
+          ECS_PASSWORD: ${{ secrets.ECS_PASSWORD }}
+          ECS_KNOWN_HOSTS: ${{ secrets.ECS_KNOWN_HOSTS }}
+          ECS_PORT: ${{ vars.ECS_PORT }}
+          ECS_DEPLOY_PATH: ${{ vars.ECS_DEPLOY_PATH }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          DIR=$(mktemp -d)
+          trap 'rm -rf "$DIR"' EXIT
+          printf '%s\n' "$ECS_KNOWN_HOSTS" > "$DIR/known_hosts"
+          OPT=(-o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$DIR/known_hosts" -o ConnectTimeout=20)
+          AUTH=()
+          if [[ -n "${ECS_SSH_KEY:-}" ]]; then
+            printf '%s\n' "$ECS_SSH_KEY" > "$DIR/key"
+            chmod 600 "$DIR/key"
+            OPT+=(-i "$DIR/key" -o BatchMode=yes -o IdentitiesOnly=yes)
+          else
+            export SSHPASS="$ECS_PASSWORD"
+            AUTH=(sshpass -e)
+            OPT+=(-o BatchMode=no -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive -o NumberOfPasswordPrompts=1)
+          fi
+          ROOT=${ECS_DEPLOY_PATH:-/opt/airontology}
+          [[ "$ROOT" =~ ^/[A-Za-z0-9/_-]+$ && "$ROOT" != / ]] || exit 1
+          printf -v COMMAND 'bash -s -- %q' "$ROOT"
+          "${AUTH[@]}" ssh "${OPT[@]}" -p "${ECS_PORT:-22}" "$ECS_USER@$ECS_HOST" "$COMMAND" <<'REMOTE'
+          set -Eeuo pipefail
+          ROOT=${1:?}
+          [[ "$ROOT" =~ ^/[A-Za-z0-9/_-]+$ && "$ROOT" != / ]] || exit 1
+          exec 9>"$ROOT/deploy.lock"
+          flock -n 9 || { echo '另一部署正在运行'; exit 1; }
+          RELEASE=$(readlink -f "$ROOT/current")
+          ENV_FILE="$ROOT/shared/.env"
+          [[ "$(docker inspect -f '{{.State.Health.Status}}' airontology-app-1)" == healthy ]]
+          [[ "$(docker inspect -f '{{.State.Health.Status}}' airontology-fuseki-1)" == healthy ]]
+          python3 - "$ENV_FILE" <<'PY'
+          import os, pathlib, re, sys, tempfile
+          path = pathlib.Path(sys.argv[1])
+          lines = [line for line in path.read_text().splitlines()
+                   if not re.match(r'^\s*DEMO_INTERVAL_SECONDS\s*=', line)]
+          lines.append('DEMO_INTERVAL_SECONDS=15')
+          fd, name = tempfile.mkstemp(prefix='.env.simulator.', dir=path.parent)
+          try:
+              with os.fdopen(fd, 'w') as stream: stream.write('\n'.join(lines) + '\n')
+              os.chmod(name, 0o600)
+              os.replace(name, path)
+          finally:
+              if os.path.exists(name): os.unlink(name)
+          PY
+          docker compose --profile demo --project-name airontology --project-directory "$RELEASE" \
+            --env-file "$ENV_FILE" --env-file "$RELEASE/images.env" -f "$RELEASE/compose.ecs.yaml" \
+            up -d --no-deps --force-recreate --wait --wait-timeout 120 simulator
+          sleep 35
+          [[ "$(docker inspect -f '{{.State.Health.Status}}' airontology-app-1)" == healthy ]] || { docker stop airontology-simulator-1; echo 'Application unhealthy; simulator stopped'; exit 1; }
+          [[ "$(docker inspect -f '{{.State.Health.Status}}' airontology-fuseki-1)" == healthy ]] || { docker stop airontology-simulator-1; echo 'Fuseki unhealthy; simulator stopped'; exit 1; }
+          echo 'Simulator running at a 15-second interval; application and Fuseki healthy'
+          REMOTE
+  configure:
+    if: github.ref == 'refs/heads/main' && inputs.action == 'configure'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate scripts
+        run: |
+          bash -n scripts/configure-deepseek-ecs.sh scripts/apply-deepseek-ecs.sh
+          python3 scripts/test_deepseek_config.py
+      - name: Install password login helper
+        run: |
+          if ! command -v sshpass >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y sshpass
+          fi
+      - name: Configure DeepSeek through verified SSH
+        env:
+          ECS_HOST: ${{ secrets.ECS_HOST }}
+          ECS_USER: ${{ secrets.ECS_USER }}
+          ECS_SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
+          ECS_PASSWORD: ${{ secrets.ECS_PASSWORD }}
+          ECS_KNOWN_HOSTS: ${{ secrets.ECS_KNOWN_HOSTS }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.DEEPSEEKAPIKEY }}
+          ECS_PORT: ${{ vars.ECS_PORT }}
+          ECS_DEPLOY_PATH: ${{ vars.ECS_DEPLOY_PATH }}
+        run: bash scripts/configure-deepseek-ecs.sh

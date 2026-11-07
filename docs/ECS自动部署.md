@@ -200,6 +200,13 @@ Fuseki默认JVM参数改为 `-Xms64m -Xmx512m -XX:ActiveProcessorCount=2`，容�
 
 ## 配置 DeepSeek 解读
 
-将 DeepSeek API 密钥保存为仓库 Actions Secret `DEEPSEEK_API_KEY`，然后在 main 分支手动运行 **Configure DeepSeek on ECS**。该流程通过已校验的 SSH 连接把密钥写入 ECS 的 `shared/.env`，权限设为 600，只重启应用容器，并检查 `/api/agent/questions` 返回 `llm_configured: true`。密钥不进入代码、构建镜像或 Actions 日志。后续普通部署继续沿用此持久配置；更换密钥时更新 Secret 并重新运行配置流程。
+将 DeepSeek API 密钥保存为仓库 Actions Secret `DEEPSEEK_API_KEY`，然后在 main 分支手动运行 **ECS maintenance** 并选择 `configure`。该流程通过已校验的 SSH 连接把密钥写入 ECS 的 `shared/.env`，权限设为 600，只重启应用容器，并检查 `/api/agent/questions` 返回 `llm_configured: true`。密钥不进入代码、构建镜像或 Actions 日志。后续普通部署继续沿用此持久配置；更换密钥时更新 Secret 并重新运行配置流程。
 
 `llm_configured: true` 只表示服务已读取密钥。还需在态势问答中实际提问，并看到 **DeepSeek 流式解读**，才能确认远端 API 调用成功。若出现解读错误，规则卡片仍会保留，可根据 DeepSeek 账户余额、密钥状态和 ECS 出站网络排查。
+
+## 日常工作流与运维
+
+- 新功能推送开发分支，向 `main` 创建 PR 后自动运行 **Verify AirOntology**；该工作流也可手动运行。
+- 合并后，手动运行 **Deploy AirOntology to ECS**，选择 `main`、服务器架构和是否启动模拟器。部署仍会独立测试并验证即将上传的镜像。
+- 排障时手动运行 **ECS maintenance**：`diagnose` 为只读检查；`recover` 会重启服务并暂停模拟器；`resume` 将模拟间隔设为 15 秒并恢复模拟器；`configure` 使用既有 Secret 配置 DeepSeek。
+- 运维与部署共享并发锁，避免互相覆盖。
