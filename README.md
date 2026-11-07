@@ -64,7 +64,7 @@ macOS 也可以双击 `start-local.command`，Windows 可运行 `start-local.bat
 ./start-local.sh stop    # 停止服务，保留数据卷
 ```
 
-本地 Compose 默认模拟 16 架目标、每 2 秒更新一次；ECS 配置默认 10 架。实际运行值可能由环境配置覆盖。参数见 [`.env.example`](.env.example)；高德底图配置见[说明](docs/高德卫星底图与状态排查.md)。
+本地 Compose 默认模拟 20 架目标、每 2 秒更新一次，包含远距离通行和环绕巡查等合成航线；ECS 配置默认 10 架。实际运行值可能由环境配置覆盖。参数见 [`.env.example`](.env.example)；高德底图配置见[说明](docs/高德卫星底图与状态排查.md)。
 
 暂时无法启动 Docker 时，可使用[内存 RDF 本地预览](docs/本体证据问答本地预览.md)。预览不连接 Fuseki、MQTT 或 ECS，退出后数据清空。
 

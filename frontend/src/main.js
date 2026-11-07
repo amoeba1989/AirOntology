@@ -146,7 +146,7 @@ createApp(location.pathname.replace(/\/$/, '') === '/back' && !new URLSearchPara
     async function switchBasemap(value) {
       if (!map || value === mapStyle.value) return;
       if (value === 'satellite') {
-        if (!satelliteKey) { mapMessage.value = '高德卫星图尚未配置，继续显示 ArcGIS 深灰底图。'; return; }
+        if (!satelliteKey) { mapMessage.value = '卫星影像暂不可用：请检查高德地图配置和服务连接。'; return; }
         const center = map.getCenter();
         satelliteActive.value = true;
         map.setView(displayPoint(center.lat, center.lng), map.getZoom(), {animate:false});
