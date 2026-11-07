@@ -1,8 +1,10 @@
 # AirOntology · 无人机本体工作台
 
-![AirOntology：连接无人机态势、地理信息与知识图谱](docs/images/airontology-overview.png)
+![AirOntology：连接无人机态势、地理信息与知识图谱](docs/images/airontology-overview-cn.png)
 
 > **让无人机态势看得见，让数据关系和判断依据讲得清。**
+
+[在线体验](http://182.92.185.115:8092/) · [本体拓扑](http://182.92.185.115:8092/back) · [接口文档](http://182.92.185.115:8092/docs) · [本地快速开始](#快速开始)
 
 AirOntology 是一个用于学习和演示无人机态势与知识图谱的项目。它将模拟设备消息、距离规则、RDF 本体和地图展示串成一条可追溯的数据链，帮助理解 **OWL / RDF、SPARQL、SHACL 与 GIS 前端如何协同工作**。
 
