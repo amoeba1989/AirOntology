@@ -7,3 +7,6 @@
 .venv
 
 backups
+docs
+bundle
+bundle.tar

@@ -33,9 +33,27 @@ else
   SSH_OPTIONS+=(-o BatchMode=no -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive -o NumberOfPasswordPrompts=1)
 fi
 REMOTE="$ECS_USER@$ECS_HOST"
+BUNDLE_BYTES=$(wc -c < bundle.tar | tr -d '[:space:]')
+echo "传输包大小：$BUNDLE_BYTES bytes"
+UPLOAD_STARTED=$SECONDS
 printf -v PREPARE 'umask 077; mkdir -p %q' "$ECS_DEPLOY_PATH/incoming/$RELEASE_ID"
 "${AUTH[@]}" ssh "${SSH_OPTIONS[@]}" -p "$ECS_PORT" "$REMOTE" "$PREPARE"
 "${AUTH[@]}" scp "${SSH_OPTIONS[@]}" -P "$ECS_PORT" bundle.tar "$REMOTE:$ECS_DEPLOY_PATH/incoming/$RELEASE_ID/bundle.tar"
+UPLOAD_SECONDS=$((SECONDS - UPLOAD_STARTED))
+echo "SSH准备与上传耗时：${UPLOAD_SECONDS}s"
 BUNDLE_SHA=$(sha256sum bundle.tar | awk '{print $1}')
 printf -v COMMAND 'bash -s -- %q %q %q %q %q' "$ECS_DEPLOY_PATH" "$RELEASE_ID" "$BUNDLE_SHA" "$TARGET_ARCH" "$RUN_SIMULATOR"
+DEPLOY_STARTED=$SECONDS
 "${AUTH[@]}" ssh "${SSH_OPTIONS[@]}" -p "$ECS_PORT" "$REMOTE" "$COMMAND" < scripts/deploy-ecs.sh
+DEPLOY_SECONDS=$((SECONDS - DEPLOY_STARTED))
+echo "ECS校验、导入、备份与切换耗时：${DEPLOY_SECONDS}s"
+if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+  {
+    printf '### ECS 发布耗时\n\n'
+    printf '| 项目 | 实测值 |\n| --- | ---: |\n'
+    printf '| 传输包 | %s bytes |\n' "$BUNDLE_BYTES"
+    printf '| SSH准备与上传 | %s 秒 |\n' "$UPLOAD_SECONDS"
+    printf '| ECS校验、导入、备份与切换 | %s 秒 |\n' "$DEPLOY_SECONDS"
+    printf '\n构建缓存命中情况见 Build images with cache；首次运行需要建立缓存。\n'
+  } >> "$GITHUB_STEP_SUMMARY"
+fi

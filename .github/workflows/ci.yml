@@ -7,25 +7,40 @@ permissions:
   contents: read
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: pip install -r backend/requirements-dev.txt
-      - run: PYTHONPATH=backend python -m pytest backend/tests -q
+      - run: PYTHONPATH=backend python -m pytest backend/tests -q -n 2 --durations=5
       - run: bash -n scripts/deploy-ecs.sh scripts/publish-ecs.sh start-local.sh start-local.command && python scripts/test_deploy.py
-      - run: npm ci && npm test && npm run build
+      - run: npm ci --prefer-offline --no-audit --no-fund && npm test
         working-directory: frontend
       - run: cp .env.example .env && docker compose config --quiet
-      - run: docker compose build && docker compose up -d --wait --wait-timeout 180
-      - run: docker compose --profile demo up -d simulator
+      - uses: docker/setup-buildx-action@v4
+      - name: Build images with cache
+        uses: docker/bake-action@v7
+        with:
+          source: .
+          files: compose.yaml
+          targets: app,fuseki
+          load: true
+          set: |
+            app.cache-from=type=gha,scope=app-${{ runner.arch }},version=2
+            app.cache-to=type=gha,scope=app-${{ runner.arch }},version=2,mode=max,ignore-error=true,timeout=60s
+            fuseki.cache-from=type=gha,scope=fuseki-${{ runner.arch }},version=2
+            fuseki.cache-to=type=gha,scope=fuseki-${{ runner.arch }},version=2,mode=max,ignore-error=true,timeout=60s
+      - run: docker compose up -d --no-build --wait --wait-timeout 180
+      - run: docker compose --profile demo up -d --no-build simulator
       - run: python scripts/smoke.py
       - if: always()
         run: docker compose --profile demo logs --tail=100
