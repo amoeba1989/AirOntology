@@ -3,8 +3,8 @@ export default `
   <header>
     <div class="brand-mark">A<span>O</span></div><div class="brand">AirOntology<small>无人机本体 · 观测与评估工作台</small></div>
     <span class="edition">{{target?.data_mode==='simulated'?'模拟数据':target?.data_mode==='operational'?'业务接入声明':target?'来源待核实':'本体演示'}}</span>
-    <nav class="view-switch" aria-label="工作台视图"><button :class="{active:viewMode==='screen'}" @click="changeView('screen')">态势地图</button><a href="/back">本体拓扑</a><a href="/back#query-tools">查询与校验</a><button :class="{active:viewMode==='learning'}" @click="changeView('learning')">本体学习</button></nav>
-    <div class="header-right"><span class="status-dot" :class="{online:mode==='live'&&health?.mqtt.connected}"></span>{{health?.preview?'本地模拟预览':status}}<span class="divider"></span><button @click="openConfig" :disabled="mode!=='live'">阵地与规则配置</button></div>
+    <nav class="view-switch" aria-label="工作台视图"><button :class="{active:viewMode==='screen'}" @click="changeView('screen')">态势地图</button><a href="/back">本体拓扑</a><a href="/rules">规则引擎</a><a href="/back#query-tools">查询与校验</a><button :class="{active:viewMode==='learning'}" @click="changeView('learning')">本体学习</button></nav>
+    <div class="header-right"><span class="status-dot" :class="{online:mode==='live'&&health?.mqtt.connected}"></span>{{health?.preview?'本地模拟预览':status}}<span class="divider"></span><a href="/rules">规则与对象配置 →</a></div>
   </header>
   <main>
     <div class="page-title"><div><div class="eyebrow">OBSERVE · ASSESS · EXPLAIN</div><h1>每一次评估，都有可追溯的依据</h1><p>选择一个阵地，比较目标距离；打开评估，查看观测、规则与对象关系。</p></div><div class="pipeline">无人机 <b>→</b> 观测记录 <b>→</b> 评估记录 <b>→</b> 阵地 / 规则</div></div>
@@ -97,18 +97,8 @@ export default `
     <DeviceWorkbench :request="request" :data="deviceData" :selected-id="selectedDeviceId" :locate="locateDevice" :replay="mode!=='live'" />
     <LearningWorkbench :request="request" :data="data" :mode="mode" :highlight="highlightQuery" :focus-row="focusQueryRow" />
     <EvidenceWorkbench :request="request" :active="viewMode==='learning'" :locate="locateEvidence" :clear-point="clearEvidencePoint" />
-    <footer>AirOntology<span>从观测到评估，理解业务关系。</span><span>有界历史 · 不启用自动推理</span></footer>
+    <footer>AirOntology<span>从观测到评估，理解业务关系。</span><span>有界历史 · 规则结果可追溯</span></footer>
   </main>
   <AgentPanel :request="request" :data="data" :point="point" :mode="mode" :locate-candidate="locateAgentCandidate" :return-live="live" />
-  <div v-if="configOpen&&draft" class="modal-backdrop" @click.self="configOpen=false"><section class="config-modal" role="dialog" aria-modal="true" aria-labelledby="config-title">
-    <div class="config-head"><div><small>POSITION / CONFIGURATION</small><h2 id="config-title">阵地与关注范围</h2><p>设置阵地位置与所有阵地共用的距离规则</p></div><button type="button" @click="configOpen=false" aria-label="关闭配置">✕</button></div>
-    <form @submit.prevent="saveConfig"><div v-if="configError" role="alert" class="alert">{{configError}}</div>
-      <div class="config-layout"><div class="config-main"><section class="config-section"><div class="config-section-head"><div><small>01 / POSITION</small><h3>阵地位置 <span>{{draft.positions.length}} / 10</span></h3><p>输入 WGS84 经纬度，位置用于计算目标到阵地的距离。</p></div><button type="button" @click="addPosition" :disabled="draft.positions.length>=10">＋ 添加阵地（最多10处）</button></div>
-      <div class="config-position" v-for="(p,index) in draft.positions" :key="index"><div class="config-position-title"><b>阵地 {{String(index+1).padStart(2,'0')}}</b><button type="button" @click="draft.positions.splice(index,1)" :disabled="draft.positions.length===1">删除</button></div><label>名称<input required maxlength="80" v-model="p.name"></label><label>编号<input required pattern="[A-Za-z0-9_-]{1,100}" v-model="p.id"></label><label>经度<input required type="number" step="any" min="-180" max="180" v-model.number="p.lon"></label><label>纬度<input required type="number" step="any" min="-90" max="90" v-model.number="p.lat"></label></div></section>
-      <section class="config-section"><div class="config-section-head"><div><small>02 / DISTANCE RULE</small><h3>距离关注规则 <span>全部阵地共用</span></h3><p>仅表示水平距离分级，不代表综合威胁。</p></div></div><div class="rule-inputs"><label class="rule-high">高关注 · 米<input required type="number" step="any" min="0.001" v-model.number="draft.high_threshold"></label><label class="rule-medium">中关注 · 米<input required type="number" step="any" min="0.001" v-model.number="draft.medium_threshold"></label><label class="rule-low">低关注 · 米<input required type="number" step="any" min="0.001" max="100000" v-model.number="draft.low_threshold"></label></div><p class="config-hint">阈值须满足：高关注 ＜ 中关注 ＜ 低关注。</p></section>
-      <details class="config-advanced"><summary>高级设置 · 数据有效期与历史</summary><div class="rule-inputs"><label>数据过期时间 / 秒<input required type="number" min="2" max="3600" step="any" v-model.number="draft.stale_seconds"></label><label>每目标保留观测数<input required type="number" min="10" max="1000" step="1" v-model.number="draft.history_limit"></label></div><p>减少历史保留数量会清理超出数量的旧记录。</p></details></div>
-      <aside class="config-preview"><small>RANGE OVERVIEW</small><h3>关注范围示意</h3><p>示意图非地图，圆环不按比例绘制。</p><div class="config-radar" aria-hidden="true"><i></i><i></i><i></i><b>⌖</b></div><div class="range-summary"><div><i class="range-dot high"></i><span>高关注</span><b>≤ {{draft.high_threshold}} m</b></div><div><i class="range-dot medium"></i><span>中关注</span><b>≤ {{draft.medium_threshold}} m</b></div><div><i class="range-dot low"></i><span>低关注</span><b>≤ {{draft.low_threshold}} m</b></div></div><p>新规则从后续观测生效，历史评估保留原规则。</p></aside></div>
-      <div class="config-actions"><small>当前规则版本：{{configVersion}}</small><div><button type="button" class="config-cancel" @click="configOpen=false">取消</button><button type="submit" :disabled="saving">{{saving?'正在保存…':'保存配置'}}</button></div></div>
-    </form></section></div>
   <div v-if="toast" class="toast" role="status">{{toast}}</div>
 </div>`;

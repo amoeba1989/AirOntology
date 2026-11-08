@@ -17,6 +17,7 @@ from rdflib import Dataset
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'backend'))
 from app.config import Settings
+from app.version import VERSION
 from app.demo_telemetry import make_registry, make_frame
 from app.domain import GEOD
 from app.main import create_app
@@ -43,7 +44,7 @@ def create_preview():
     store = FusekiStore(settings)
     store.client.close()
     store.client = httpx.Client(transport=httpx.MockTransport(handle), timeout=30)
-    app = create_app(settings, store, enable_mqtt=False)
+    app = create_app(settings, store, enable_mqtt=False, enable_rules=True)
     original_lifespan = app.router.lifespan_context
 
     @asynccontextmanager
@@ -93,7 +94,7 @@ def create_preview():
     async def preview_health(request, call_next):
         if request.url.path == '/api/health':
             return JSONResponse({'status':'preview', 'preview':True, 'fuseki':False,
-                                 'mqtt':{'connected':False, 'last_error':None}, 'version':'2.4.0'})
+                                 'mqtt':{'connected':False, 'last_error':None}, 'version':VERSION})
         return await call_next(request)
 
     return app

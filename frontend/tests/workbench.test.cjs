@@ -13,7 +13,7 @@ async function until(check) {
   assert.ok(check(), "界面未在规定时间达到预期状态");
 }
 
-test("多目标地图、独立评估、TTL、回放与配置保存", async () => {
+test("多目标地图、独立评估、TTL、回放与规则入口", async () => {
   const bundle = await esbuild.build({
     entryPoints: [path.join(__dirname, "../src/main.js")],
     bundle: true,
@@ -280,7 +280,7 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     await until(() =>
       doc.querySelector(".mode-label").textContent.includes("历史快照"),
     );
-    assert.ok(button("阵地与规则配置").disabled);
+    assert.ok(doc.querySelector('a[href="/rules"]'));
     button("播放回放").click();
     await wait(700);
     assert.ok(doc.querySelector(".frame-label").textContent.includes("2 / 2"));
@@ -294,19 +294,6 @@ test("多目标地图、独立评估、TTL、回放与配置保存", async () =>
     await until(() => doc.querySelector('.agent-snapshot'));
     doc.querySelector('[aria-label="收起智能问答"]').click();
     await until(() => doc.querySelector('.agent-orb'));
-    button("阵地与规则配置").click();
-    await until(() => doc.querySelector('[role="dialog"]'));
-    assert.equal(doc.querySelectorAll(".config-position").length, 2);
-    button("＋ 添加阵地（最多10处）").click();
-    await until(() => doc.querySelectorAll(".config-position").length === 3);
-    doc
-      .querySelector("form")
-      .dispatchEvent(
-        new win.Event("submit", { bubbles: true, cancelable: true }),
-      );
-    await until(() => saved);
-    assert.equal(saved.expected_version, "rule-test");
-    assert.equal(saved.config.positions.length, 3);
     await until(() => doc.querySelector('.term-detail h3')?.textContent.includes('观测记录'));
     const search = doc.querySelector('[aria-label="搜索本体术语"]');
     search.value = '不存在'; search.dispatchEvent(new win.Event('input',{bubbles:true}));
