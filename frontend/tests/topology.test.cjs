@@ -11,7 +11,7 @@ test('独立本体页面切换模型、实例、类型对照，查询定位与�
   const w=dom.window,d=w.document,errors=[];w.addEventListener('error',e=>errors.push(e.message));
   const cls='urn:test#BlueDevice',instance='urn:test#drone001';let fail=false;
   const fixture={terms:[{uri:cls,label:'无人机',kind:'class',domain:[],range:[],count:1,constraints:[]}],individuals:[{uri:instance,label:'一号无人机',kind:'individual',types:[cls]}],schema_edges:[],edges:[{source:instance,target:cls,kind:'type',label:'类型'}],triples:[],at:new Date().toISOString(),scope:'测试快照',schema_ttl:''};
-  w.fetch=async(url)=>({ok:!fail,status:fail?503:200,json:async()=>url==='/api/ontology/topology'?fixture:url==='/api/learning/queries'?{items:[{id:'current',title:'当前目标'}]}:{variables:['target'],rows:[{target:{type:'uri',value:instance}}],sparql:'SELECT ?target WHERE {}'}});
+  w.fetch=async(url)=>({ok:!fail,status:fail?503:200,json:async()=>url==='/api/ontology/topology'?JSON.parse(JSON.stringify(fixture)):url==='/api/learning/queries'?{items:[{id:'current',title:'当前目标'}]}:{variables:['target'],rows:[{target:{type:'uri',value:instance}}],sparql:'SELECT ?target WHERE {}'}});
   const button=text=>[...d.querySelectorAll('button')].find(x=>x.textContent.includes(text));
   try{
     w.eval(bundle.outputFiles[0].text);
@@ -24,6 +24,17 @@ test('独立本体页面切换模型、实例、类型对照，查询定位与�
     button('运行只读查询').click();await until(()=>button('定位对象'));button('定位对象').click();
     await until(()=>d.querySelector('.ow-details h2').textContent==='一号无人机');
     assert.match(d.querySelector('.ow-toolbar').textContent,/邻居视图/);
+    // 二层关联通过“实例 → 类 → 上级类”验证，确保层级选择改变可见范围。
+    const parent='urn:test#Aircraft';
+    fixture.terms.push({uri:parent,label:'飞行器',kind:'class',domain:[],range:[],count:0,constraints:[]});
+    fixture.schema_edges.push({source:cls,target:parent,kind:'inheritance',label:'属于'});
+    button('刷新事实').click();await until(()=>!button('读取中…'));
+    const depth=d.querySelector('.ow-toolbar select');depth.value='2';depth.dispatchEvent(new w.Event('change',{bubbles:true}));
+    await until(()=>d.querySelectorAll('.ow-node').length===3);
+    assert.match(d.querySelector('.ow-depth-hint').textContent,/直接相连/);
+    button('全景').click();await until(()=>d.querySelector('.ow-toolbar').textContent.includes('全景'));
+    depth.value='1';depth.dispatchEvent(new w.Event('change',{bubbles:true}));
+    await until(()=>d.querySelector('.ow-toolbar').textContent.includes('邻居视图'));
     fail=true;button('刷新事实').click();await until(()=>d.querySelector('[role="alert"]'));
     assert.match(d.querySelector('[role="alert"]').textContent,/503/);
     assert.deepEqual(errors,[]);

@@ -1417,3 +1417,18 @@ td small {
 /* Unified primary navigation */
 .view-switch a {display:inline-flex;align-items:center;padding:8px 12px;border:1px solid #29516c;border-radius:7px;background:#0e2b43;color:#bfdced;text-decoration:none;font-size:14px;white-space:nowrap}
 .view-switch a:hover {background:#244259;color:#fff}
+
+/* 主导航：让品牌、工作区与运行状态形成清晰层次。 */
+.workspace > header {position:relative;isolation:isolate;background:linear-gradient(105deg,#071827 0%,#0b2639 56%,#0a1b2b 100%);border-bottom:1px solid #315671;box-shadow:0 5px 20px #0003}
+.workspace > header:after {content:'';position:absolute;z-index:-1;inset:auto 0 -1px;height:1px;background:linear-gradient(90deg,#2d9dbf,transparent 45%,#39b7ad77)}
+.workspace .brand-mark {width:42px;height:42px;border:1px solid #4ab5d369;background:linear-gradient(140deg,#164c6d,#0a2c48);box-shadow:inset 0 1px #ffffff25;color:#c7f4ff;letter-spacing:-2px}
+.workspace .brand {font-size:19px;line-height:1.15;color:#f1f8fc;letter-spacing:-.4px;white-space:nowrap}
+.workspace .brand small {font-size:10px;letter-spacing:.08em;color:#8dadc1;margin-top:4px}
+.workspace .edition {margin-left:4px;padding:5px 9px;border:1px solid #3988a960;border-radius:20px;background:#10374d;color:#9fd9e7;letter-spacing:.03em;white-space:nowrap}
+.workspace .view-switch {align-items:center;gap:3px;padding:4px;border:1px solid #31526988;border-radius:10px;background:#071c2d8c}
+.workspace .view-switch button,.workspace .view-switch a {min-height:34px;padding:8px 12px;border:1px solid transparent;border-radius:7px;background:transparent;color:#a9c6d6;font-size:12px;text-decoration:none}
+.workspace .view-switch button:hover,.workspace .view-switch a:hover {background:#1c4056;color:#f0fbff}
+.workspace .view-switch button.active {border-color:#36a7bd;background:#125a73;color:#fff;box-shadow:0 2px 8px #0004}
+.workspace .header-right {color:#bad6e1;white-space:nowrap}
+.workspace .header-right > button {border:1px solid #3b728b;background:#15384c;color:#d7eef3;border-radius:8px}
+@media(max-width:1000px){.workspace > header{gap:7px;padding-inline:10px}.workspace .brand small,.workspace .edition{display:none}.workspace .view-switch{margin-left:0}.workspace .view-switch button,.workspace .view-switch a{padding:7px 8px}}
