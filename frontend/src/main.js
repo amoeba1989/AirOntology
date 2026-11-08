@@ -133,6 +133,8 @@ createApp(location.pathname.replace(/\/$/, '') === '/rules' ? RulesWorkbench : l
       fallbackLayer,
       tileErrors = 0,
       satelliteKey = '',
+      esriImagery = null,
+      imageryErrors = 0,
       timer,
       playTimer,
       closed = false,
@@ -143,6 +145,26 @@ createApp(location.pathname.replace(/\/$/, '') === '/rules' ? RulesWorkbench : l
     async function switchBasemap(value) {
       if (!map || value === mapStyle.value) return;
       if (value === 'satellite') {
+        if (mapStyle.value === 'amap') {
+          removeSatellite?.(); removeSatellite = null;
+          document.getElementById('map')?.classList.remove('satellite-overlay');
+          const center = map.getCenter();
+          satelliteActive.value = false;
+          map.setView(gcj02ToWgs84(center.lat, center.lng), map.getZoom(), {animate:false});
+        }
+        imageryErrors = 0;
+        esriImagery ||= L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          maxZoom:19, maxNativeZoom:18,
+          attribution:'Tiles &copy; Esri &mdash; Sources: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+        }).on('tileerror', () => {
+          if (mapStyle.value === 'satellite' && ++imageryErrors === 3) mapMessage.value = 'Esri 影像加载失败，请检查网络；可切换回深灰底图。';
+        });
+        darkLayers.forEach(layer => map.removeLayer(layer));
+        if (fallbackLayer) map.removeLayer(fallbackLayer);
+        esriImagery.addTo(map);
+        mapStyle.value = 'satellite'; basemapName.value = 'Esri 卫星影像'; mapMessage.value = '';
+        draw();
+      } else if (value === 'amap') {
         if (!satelliteKey) { mapMessage.value = '卫星影像暂不可用：请检查高德地图配置和服务连接。'; return; }
         const center = map.getCenter();
         satelliteActive.value = true;
@@ -150,9 +172,10 @@ createApp(location.pathname.replace(/\/$/, '') === '/rules' ? RulesWorkbench : l
         try {
           removeSatellite = await attachAmapSatellite(map, satelliteKey);
           darkLayers.forEach(layer => map.removeLayer(layer));
+          if (esriImagery) map.removeLayer(esriImagery);
           fallbackLayer && map.removeLayer(fallbackLayer);
           document.getElementById('map')?.classList.add('satellite-overlay');
-          mapStyle.value = 'satellite'; basemapName.value = '高德卫星影像'; mapMessage.value = '';
+          mapStyle.value = 'amap'; basemapName.value = '高德卫星影像'; mapMessage.value = '';
           draw();
         } catch (cause) {
           satelliteActive.value = false;
@@ -163,9 +186,12 @@ createApp(location.pathname.replace(/\/$/, '') === '/rules' ? RulesWorkbench : l
       } else {
         removeSatellite?.(); removeSatellite = null;
         document.getElementById('map')?.classList.remove('satellite-overlay');
-        const center = map.getCenter();
-        satelliteActive.value = false;
-        map.setView(gcj02ToWgs84(center.lat, center.lng), map.getZoom(), {animate:false});
+        if (satelliteActive.value) {
+          const center = map.getCenter();
+          satelliteActive.value = false;
+          map.setView(gcj02ToWgs84(center.lat, center.lng), map.getZoom(), {animate:false});
+        }
+        if (esriImagery) map.removeLayer(esriImagery);
         if (tileErrors >= 3) fallbackLayer.addTo(map);
         else darkLayers.forEach(layer => layer.addTo(map));
         mapStyle.value = 'dark'; basemapName.value = tileErrors >= 3 ? '备用标准底图' : 'ArcGIS 深灰底图';
