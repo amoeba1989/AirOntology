@@ -1417,3 +1417,30 @@ td small {
 /* Unified primary navigation */
 .view-switch a {display:inline-flex;align-items:center;padding:8px 12px;border:1px solid #29516c;border-radius:7px;background:#0e2b43;color:#bfdced;text-decoration:none;font-size:14px;white-space:nowrap}
 .view-switch a:hover {background:#244259;color:#fff}
+
+/* 主导航：让品牌、工作区与运行状态形成清晰层次。 */
+.workspace > header {position:relative;isolation:isolate;background:linear-gradient(105deg,#071827 0%,#0b2639 56%,#0a1b2b 100%);border-bottom:1px solid #315671;box-shadow:0 5px 20px #0003}
+.workspace > header:after {content:'';position:absolute;z-index:-1;inset:auto 0 -1px;height:1px;background:linear-gradient(90deg,#2d9dbf,transparent 45%,#39b7ad77)}
+.workspace .brand-mark {width:42px;height:42px;border:1px solid #4ab5d369;background:linear-gradient(140deg,#164c6d,#0a2c48);box-shadow:inset 0 1px #ffffff25;color:#c7f4ff;letter-spacing:-2px}
+.workspace .brand {font-size:19px;line-height:1.15;color:#f1f8fc;letter-spacing:-.4px;white-space:nowrap}
+.workspace .brand small {font-size:10px;letter-spacing:.08em;color:#8dadc1;margin-top:4px}
+.workspace .edition {margin-left:4px;padding:5px 9px;border:1px solid #3988a960;border-radius:20px;background:#10374d;color:#9fd9e7;letter-spacing:.03em;white-space:nowrap}
+.workspace .view-switch {align-items:center;gap:3px;padding:4px;border:1px solid #31526988;border-radius:10px;background:#071c2d8c}
+.workspace .view-switch button,.workspace .view-switch a {min-height:34px;padding:8px 12px;border:1px solid transparent;border-radius:7px;background:transparent;color:#a9c6d6;font-size:12px;text-decoration:none}
+.workspace .view-switch button:hover,.workspace .view-switch a:hover {background:#1c4056;color:#f0fbff}
+.workspace .view-switch button.active {border-color:#36a7bd;background:#125a73;color:#fff;box-shadow:0 2px 8px #0004}
+.workspace .header-right {color:#bad6e1;white-space:nowrap}
+.workspace .header-right > button {border:1px solid #3b728b;background:#15384c;color:#d7eef3;border-radius:8px}
+@media(max-width:1000px){.workspace > header{gap:7px;padding-inline:10px}.workspace .brand small,.workspace .edition{display:none}.workspace .view-switch{margin-left:0}.workspace .view-switch button,.workspace .view-switch a{padding:7px 8px}}
+/* 紧凑的系统级导航：弱化装饰，使用底线标识当前模块。 */
+.workspace > header {height:auto;min-height:60px;padding:0 24px;gap:12px;flex-wrap:nowrap;background:#102332;border-bottom:1px solid #314655;box-shadow:none}
+.workspace .brand-mark {width:32px;height:32px;flex:none;padding:0;border:1px solid #67808e;border-radius:3px;background:#233d4d;box-shadow:none;color:#e5edf1;font-size:13px;font-weight:700;letter-spacing:0}
+.workspace .brand {flex:none;color:#edf3f6;font-size:15px;letter-spacing:0;line-height:1.3}
+.workspace .brand small {font-size:10px;letter-spacing:.5px;margin-top:1px;color:#94aab7}
+.workspace .edition {margin:0 8px 0 0;padding:3px 6px;border:1px solid #48616e;border-radius:2px;background:transparent;color:#b3c6d0;letter-spacing:0}
+.workspace .view-switch {align-self:stretch;align-items:stretch;gap:0;margin:0;padding:0;border:0;border-radius:0;background:none}
+.workspace .view-switch button,.workspace .view-switch a {display:flex;align-items:center;min-height:60px;padding:0 13px;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:#b7c9d2;font-size:13px;box-shadow:none}
+.workspace .view-switch button:hover,.workspace .view-switch a:hover {background:#1a3444;color:#fff}
+.workspace .view-switch button.active {border-color:#72a8bd;background:transparent;color:#fff;box-shadow:none}
+.workspace .header-right {margin-left:auto;font-size:12px;color:#a6bbc6}
+@media(max-width:1100px){.workspace > header{flex-wrap:wrap;padding:8px 14px}.workspace .brand small,.workspace .edition{display:none}.workspace .view-switch{order:3;width:100%;overflow-x:auto}.workspace .view-switch button,.workspace .view-switch a{min-height:38px;flex:none}.workspace .header-right{margin-left:auto}}

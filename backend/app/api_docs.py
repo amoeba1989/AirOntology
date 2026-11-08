@@ -1,5 +1,6 @@
 """面向 Swagger / ReDoc 的中文接口说明，不改变接口行为。"""
 from fastapi.routing import APIRoute
+from .version import VERSION
 
 # 顺序依次为用途及需要特别说明的行为。
 DOCS = {
@@ -52,6 +53,6 @@ def describe_routes(app):
                         'mqtt': {'connected': True, 'queue_size': 0, 'frame_pending': False,
                                  'superseded_frames': 0, 'rejected': 0, 'dropped': 0,
                                  'last_write': 1794067306.0, 'last_error': None},
-                        'version': '2.4.0',
+                        'version': VERSION,
                     }}},
                 }

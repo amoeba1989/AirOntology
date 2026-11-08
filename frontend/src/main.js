@@ -18,6 +18,8 @@ import AgentPanel from "./agent-panel.js";
 import EvidenceWorkbench from "./evidence.js";
 import DeviceWorkbench from "./devices.js";
 import OntologyWorkbench from './ontology-workbench.js';
+import RulesWorkbench from './rules-workbench.js';
+import { version as webVersion } from '../package.json';
 import OntologyTopology from "./ontology-topology.js";
 // 用户提供的四类业务图标统一存放在 public/icons，业务关系和颜色仍由数据决定。
 const icons = Object.freeze({
@@ -27,7 +29,7 @@ const icons = Object.freeze({
   jammer: "/icons/jammer.png",
 });
 
-createApp(location.pathname.replace(/\/$/, '') === '/back' && !new URLSearchParams(location.search).has('legacy') ? OntologyWorkbench : {
+createApp(location.pathname.replace(/\/$/, '') === '/rules' ? RulesWorkbench : location.pathname.replace(/\/$/, '') === '/back' && !new URLSearchParams(location.search).has('legacy') ? OntologyWorkbench : {
   components: { LearningWorkbench, AgentPanel, EvidenceWorkbench, DeviceWorkbench, OntologyTopology },
   setup() {
     const deviceData=ref(null),deviceError=ref(''),deviceReadAt=ref(''),selectedDeviceId=ref('');
@@ -119,11 +121,6 @@ createApp(location.pathname.replace(/\/$/, '') === '/back' && !new URLSearchPara
       frame = ref(0),
       playing = ref(false),
       replayBusy = ref(false);
-    const configOpen = ref(false),
-      draft = ref(null),
-      configVersion = ref(""),
-      saving = ref(false),
-      configError = ref("");
     let map,
       layers,
       pathLayer,
@@ -136,6 +133,8 @@ createApp(location.pathname.replace(/\/$/, '') === '/back' && !new URLSearchPara
       fallbackLayer,
       tileErrors = 0,
       satelliteKey = '',
+      esriImagery = null,
+      imageryErrors = 0,
       timer,
       playTimer,
       closed = false,
@@ -146,6 +145,26 @@ createApp(location.pathname.replace(/\/$/, '') === '/back' && !new URLSearchPara
     async function switchBasemap(value) {
       if (!map || value === mapStyle.value) return;
       if (value === 'satellite') {
+        if (mapStyle.value === 'amap') {
+          removeSatellite?.(); removeSatellite = null;
+          document.getElementById('map')?.classList.remove('satellite-overlay');
+          const center = map.getCenter();
+          satelliteActive.value = false;
+          map.setView(gcj02ToWgs84(center.lat, center.lng), map.getZoom(), {animate:false});
+        }
+        imageryErrors = 0;
+        esriImagery ||= L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          maxZoom:19, maxNativeZoom:18,
+          attribution:'Tiles &copy; Esri &mdash; Sources: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+        }).on('tileerror', () => {
+          if (mapStyle.value === 'satellite' && ++imageryErrors === 3) mapMessage.value = 'Esri 影像加载失败，请检查网络；可切换回深灰底图。';
+        });
+        darkLayers.forEach(layer => map.removeLayer(layer));
+        if (fallbackLayer) map.removeLayer(fallbackLayer);
+        esriImagery.addTo(map);
+        mapStyle.value = 'satellite'; basemapName.value = 'Esri 卫星影像'; mapMessage.value = '';
+        draw();
+      } else if (value === 'amap') {
         if (!satelliteKey) { mapMessage.value = '卫星影像暂不可用：请检查高德地图配置和服务连接。'; return; }
         const center = map.getCenter();
         satelliteActive.value = true;
@@ -153,9 +172,10 @@ createApp(location.pathname.replace(/\/$/, '') === '/back' && !new URLSearchPara
         try {
           removeSatellite = await attachAmapSatellite(map, satelliteKey);
           darkLayers.forEach(layer => map.removeLayer(layer));
+          if (esriImagery) map.removeLayer(esriImagery);
           fallbackLayer && map.removeLayer(fallbackLayer);
           document.getElementById('map')?.classList.add('satellite-overlay');
-          mapStyle.value = 'satellite'; basemapName.value = '高德卫星影像'; mapMessage.value = '';
+          mapStyle.value = 'amap'; basemapName.value = '高德卫星影像'; mapMessage.value = '';
           draw();
         } catch (cause) {
           satelliteActive.value = false;
@@ -166,9 +186,12 @@ createApp(location.pathname.replace(/\/$/, '') === '/back' && !new URLSearchPara
       } else {
         removeSatellite?.(); removeSatellite = null;
         document.getElementById('map')?.classList.remove('satellite-overlay');
-        const center = map.getCenter();
-        satelliteActive.value = false;
-        map.setView(gcj02ToWgs84(center.lat, center.lng), map.getZoom(), {animate:false});
+        if (satelliteActive.value) {
+          const center = map.getCenter();
+          satelliteActive.value = false;
+          map.setView(gcj02ToWgs84(center.lat, center.lng), map.getZoom(), {animate:false});
+        }
+        if (esriImagery) map.removeLayer(esriImagery);
         if (tileErrors >= 3) fallbackLayer.addTo(map);
         else darkLayers.forEach(layer => layer.addTo(map));
         mapStyle.value = 'dark'; basemapName.value = tileErrors >= 3 ? '备用标准底图' : 'ArcGIS 深灰底图';
@@ -631,55 +654,6 @@ createApp(location.pathname.replace(/\/$/, '') === '/back' && !new URLSearchPara
       pathLayer?.clearLayers();
       await poll();
     }
-    async function openConfig() {
-      try {
-        const result = await request("/api/config");
-        draft.value = result.config;
-        configVersion.value = result.version;
-        configError.value = "";
-        configOpen.value = true;
-      } catch (e) {
-        error.value = e.message;
-      }
-    }
-    function addPosition() {
-      if (draft.value.positions.length >= 10) return;
-      let i = 1;
-      while (
-        draft.value.positions.some(
-          (p) => p.id === `pos${String(i).padStart(3, "0")}`,
-        )
-      )
-        i++;
-      draft.value.positions.push({
-        id: `pos${String(i).padStart(3, "0")}`,
-        name: `新增阵地${i}`,
-        lon: draft.value.positions[0].lon,
-        lat: draft.value.positions[0].lat,
-      });
-    }
-    async function saveConfig() {
-      saving.value = true;
-      configError.value = "";
-      try {
-        const result = await request("/api/config", false, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            expected_version: configVersion.value,
-            config: draft.value,
-          }),
-        });
-        configVersion.value = result.version;
-        configOpen.value = false;
-        notice("配置已保存，从下一条观测开始生效；历史结果保持原样");
-        await poll();
-      } catch (e) {
-        configError.value = e.message;
-      } finally {
-        saving.value = false;
-      }
-    }
     async function copy() {
       try {
         await navigator.clipboard.writeText(
@@ -808,11 +782,6 @@ createApp(location.pathname.replace(/\/$/, '') === '/back' && !new URLSearchPara
       frame,
       playing,
       replayBusy,
-      configOpen,
-      draft,
-      configVersion,
-      saving,
-      configError,
       chooseTarget,
       choosePosition,
       inspect,
@@ -824,10 +793,26 @@ createApp(location.pathname.replace(/\/$/, '') === '/back' && !new URLSearchPara
       togglePlayback,
       stopPlayback,
       live,
-      openConfig,
-      addPosition,
-      saveConfig,
     };
   },
   template,
 }).mount("#app");
+
+// Version stays visible on every workspace, including standalone routes.
+const badgeRoot = document.createElement('div');
+document.body.appendChild(badgeRoot);
+createApp({
+  setup() {
+    const backendVersion = ref(''), unavailable = ref(false);
+    onMounted(async () => {
+      try {
+        const response = await fetch('/api/health', {signal: AbortSignal.timeout(10000)});
+        if (!response.ok) throw Error('health');
+        backendVersion.value = (await response.json()).version || '';
+        unavailable.value = !backendVersion.value;
+      } catch { unavailable.value = true; }
+    });
+    return {webVersion, backendVersion, unavailable};
+  },
+  template: `<div class="app-version" :class="{warning:unavailable || (backendVersion && backendVersion!==webVersion)}" aria-label="系统版本">AirOntology · v{{webVersion}}<span v-if="backendVersion && backendVersion!==webVersion"> · 后端 v{{backendVersion}}（请刷新）</span><span v-if="unavailable"> · 后端版本未确认</span></div>`
+}).mount(badgeRoot);

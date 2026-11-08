@@ -22,6 +22,8 @@ from . import learning
 from . import agent
 from . import evidence
 from . import telemetry
+from . import rules
+from .version import VERSION
 from .api_docs import describe_routes
 from pydantic import ValidationError
 
@@ -53,27 +55,56 @@ def validate_at(at):
         raise HTTPException(422, '回放时间必须包含时区')
 
 
-def create_app(settings=None, store=None, enable_mqtt=True):
+def create_app(settings=None, store=None, enable_mqtt=True, enable_rules=None):
     settings = settings or Settings()
     store = store or FusekiStore(settings)
     consumer = Consumer(settings, store)
+    rule_engine = rules.Engine(store)
+    rules_enabled = enable_mqtt if enable_rules is None else enable_rules
 
     @asynccontextmanager
     async def lifespan(app):
         store.initialize_with_retry()
         if enable_mqtt:
             consumer.start()
+        if rules_enabled:
+            rule_engine.start()
         try:
             yield
         finally:
             if enable_mqtt:
                 consumer.stop()
+            rule_engine.stop()
             store.close()
 
-    app = FastAPI(title='AirOntology 无人机本体工作台', version='2.4.0', lifespan=lifespan)
+    app = FastAPI(title='AirOntology 无人机本体工作台', version=VERSION, lifespan=lifespan)
     app.state.store, app.state.consumer = store, consumer
     validation_lock = threading.Lock()
     agent_slots = threading.BoundedSemaphore(2)
+
+    @app.get('/api/rules', tags=['规则引擎'], summary='查看已发布规则与运行记录', description='每五秒评估一次；保留最近300条状态变化事件和20个发布版本。距离分级沿用 /api/config。')
+    def read_rules():
+        def read():
+            with store.lock:
+                return {**rules.public(rules.read(store)), 'engine_enabled': rules_enabled, 'engine_error': rule_engine.error,
+                        'config': store.get_config(), 'templates': rules.KINDS}
+        return safe(read)
+
+    @app.put('/api/rules', tags=['规则引擎'], summary='发布规则集', description='使用版本号防止覆盖并发修改。关闭的规则不会执行；发布后重新建立状态基线。')
+    def publish_rules(body: rules.Change):
+        try:
+            return rules.publish(store, body)
+        except ConfigConflict as error:
+            raise HTTPException(409, str(error)) from error
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from error
+        except Exception as error:
+            logging.exception('规则发布失败')
+            raise HTTPException(503, '规则发布失败，请刷新确认状态') from error
+
+    @app.post('/api/rules/trial', tags=['规则引擎'], summary='只读试运行规则', description='当前或历史快照试运行；不保存、不改变事件。历史不含雷达状态，不模拟连续时间段。')
+    def trial_rules(body: rules.Trial):
+        return safe(lambda: rule_engine.trial(body))
 
     @app.get('/api/devices')
     def devices():
@@ -155,7 +186,7 @@ def create_app(settings=None, store=None, enable_mqtt=True):
             fuseki = False
         status = consumer.status()
         return {'status':'ok' if fuseki and status['connected'] and not status['last_error'] else 'degraded',
-                'fuseki':fuseki, 'mqtt':status, 'version':'2.4.0'}
+                'fuseki':fuseki, 'mqtt':status, 'version':VERSION}
 
     @app.get('/api/map/config')
     def map_config():
@@ -438,6 +469,8 @@ def create_app(settings=None, store=None, enable_mqtt=True):
 
     static_dir=Path(__file__).resolve().parents[2]/'frontend'/'dist'
     if static_dir.is_dir():
+        @app.get('/rules', include_in_schema=False)
+        @app.get('/rules/', include_in_schema=False)
         @app.get('/back', include_in_schema=False)
         @app.get('/back/', include_in_schema=False)
         def learning_page():
