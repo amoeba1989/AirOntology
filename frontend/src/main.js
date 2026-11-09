@@ -12,7 +12,7 @@ import "./style.css";
 import template from "./template.js";
 import { mergeTrail, trailSegments } from "./map-utils.js";
 import { wgs84ToGcj02, gcj02ToWgs84, attachAmapSatellite } from "./amap-basemap.js";
-import { darkBasemapConfig, ESRI_ATTRIBUTION } from "./map-basemap.js";
+import { darkBasemapConfig, lightBasemapConfig, ESRI_ATTRIBUTION } from "./map-basemap.js";
 import LearningWorkbench from "./learning.js";
 import AgentPanel from "./agent-panel.js";
 import EvidenceWorkbench from "./evidence.js";
@@ -130,6 +130,8 @@ createApp(location.pathname.replace(/\/$/, '') === '/rules' ? RulesWorkbench : l
       mapStyle = ref('dark'),
       basemapName = ref('ArcGIS 深灰底图'),
       darkLayers = [],
+      lightLayers = [],
+      lightErrors = 0,
       fallbackLayer,
       tileErrors = 0,
       satelliteKey = '',
@@ -160,6 +162,7 @@ createApp(location.pathname.replace(/\/$/, '') === '/rules' ? RulesWorkbench : l
           if (mapStyle.value === 'satellite' && ++imageryErrors === 3) mapMessage.value = 'Esri 影像加载失败，请检查网络；可切换回深灰底图。';
         });
         darkLayers.forEach(layer => map.removeLayer(layer));
+        lightLayers.forEach(layer => map.removeLayer(layer));
         if (fallbackLayer) map.removeLayer(fallbackLayer);
         esriImagery.addTo(map);
         mapStyle.value = 'satellite'; basemapName.value = 'Esri 卫星影像'; mapMessage.value = '';
@@ -172,6 +175,7 @@ createApp(location.pathname.replace(/\/$/, '') === '/rules' ? RulesWorkbench : l
         try {
           removeSatellite = await attachAmapSatellite(map, satelliteKey);
           darkLayers.forEach(layer => map.removeLayer(layer));
+          lightLayers.forEach(layer => map.removeLayer(layer));
           if (esriImagery) map.removeLayer(esriImagery);
           fallbackLayer && map.removeLayer(fallbackLayer);
           document.getElementById('map')?.classList.add('satellite-overlay');
@@ -192,10 +196,16 @@ createApp(location.pathname.replace(/\/$/, '') === '/rules' ? RulesWorkbench : l
           map.setView(gcj02ToWgs84(center.lat, center.lng), map.getZoom(), {animate:false});
         }
         if (esriImagery) map.removeLayer(esriImagery);
-        if (tileErrors >= 3) fallbackLayer.addTo(map);
-        else darkLayers.forEach(layer => layer.addTo(map));
-        mapStyle.value = 'dark'; basemapName.value = tileErrors >= 3 ? '备用标准底图' : 'ArcGIS 深灰底图';
-        mapMessage.value = tileErrors >= 3 ? 'ArcGIS 底图暂不可用，已切换备用底图。' : '';
+        darkLayers.forEach(layer => map.removeLayer(layer));
+        lightLayers.forEach(layer => map.removeLayer(layer));
+        if (fallbackLayer) map.removeLayer(fallbackLayer);
+        const light = value === 'light';
+        const failed = light ? lightErrors >= 3 : tileErrors >= 3;
+        mapStyle.value = light ? 'light' : 'dark';
+        if (failed) fallbackLayer.addTo(map);
+        else (light ? lightLayers : darkLayers).forEach(layer => layer.addTo(map));
+        basemapName.value = failed ? '备用标准底图' : light ? 'ArcGIS 浅灰底图' : 'ArcGIS 深灰底图';
+        mapMessage.value = failed ? '所选底图暂不可用，已切换备用底图。' : '';
         draw();
       }
     }
@@ -682,7 +692,7 @@ createApp(location.pathname.replace(/\/$/, '') === '/rules' ? RulesWorkbench : l
       });
       const darkBase = L.tileLayer(basemap.base, {maxZoom:19, maxNativeZoom:basemap.reference ? 16 : 19, attribution:ESRI_ATTRIBUTION})
         .on('tileerror', () => {
-          if (++tileErrors === 3 && mapStyle.value === 'dark') {
+          if (mapStyle.value === 'dark' && ++tileErrors === 3) {
             darkLayers.forEach(layer => map.removeLayer(layer));
             fallbackLayer.addTo(map); basemapName.value = '备用标准底图';
             mapMessage.value = 'ArcGIS 底图暂不可用，已切换备用底图；业务对象仍可显示。';
@@ -691,6 +701,19 @@ createApp(location.pathname.replace(/\/$/, '') === '/rules' ? RulesWorkbench : l
       darkLayers = [darkBase];
       if (basemap.reference) darkLayers.push(L.tileLayer(basemap.reference, {maxZoom:19, maxNativeZoom:16, attribution:ESRI_ATTRIBUTION}));
       darkLayers.forEach(layer => layer.addTo(map));
+      const lightConfig = lightBasemapConfig();
+      const lightBase = L.tileLayer(lightConfig.base, {maxZoom:19, maxNativeZoom:16, attribution:ESRI_ATTRIBUTION})
+        .on('tileerror', () => {
+          if (mapStyle.value === 'light' && ++lightErrors === 3) {
+            lightLayers.forEach(layer => map.removeLayer(layer));
+            fallbackLayer.addTo(map); basemapName.value = '备用标准底图';
+            mapMessage.value = '浅灰底图暂不可用，已切换备用底图；业务对象仍可显示。';
+          }
+        });
+      lightLayers = [lightBase, L.tileLayer(lightConfig.reference, {maxZoom:19, maxNativeZoom:16, attribution:ESRI_ATTRIBUTION})];
+      fallbackLayer.on('tileerror', () => {
+        if (map.hasLayer(fallbackLayer)) mapMessage.value = '底图和备用底图均无法加载，请检查浏览器网络；业务对象仍可显示。';
+      });
       try {
         const config=await request('/api/map/config');
         satelliteAvailable.value = !!config.enabled;

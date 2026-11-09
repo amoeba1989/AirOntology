@@ -41,3 +41,11 @@ test("切换卫星底图往返时恢复业务坐标", async () => {
   assert.ok(Math.abs(original[0]-39.9045) < 1e-6);
   assert.ok(Math.abs(original[1]-116.4077) < 1e-6);
 });
+
+test('明亮底图提供独立底图与标注瓦片', async () => {
+  const { lightBasemapConfig, darkBasemapConfig } = await import('../src/map-basemap.js');
+  const light = lightBasemapConfig();
+  assert.match(light.base, /World_Light_Gray_Base/);
+  assert.match(light.reference, /World_Light_Gray_Reference/);
+  assert.notEqual(light.base, darkBasemapConfig().base);
+});

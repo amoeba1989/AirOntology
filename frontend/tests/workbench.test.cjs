@@ -208,6 +208,14 @@ test("多目标地图、独立评估、TTL、回放与规则入口", async () =>
   try {
     win.eval(bundle.outputFiles[0].text);
     await until(() => doc.querySelectorAll(".drone-icon").length === 3);
+    button('明亮底图').click();
+    await until(() => doc.querySelector('.map-caption')?.textContent.includes('ArcGIS 浅灰底图'));
+    assert.equal(doc.querySelectorAll('.drone-icon').length, 3);
+    assert.ok([...doc.querySelectorAll('.leaflet-tile')].some(tile => tile.src.includes('World_Light_Gray_Base')));
+    button('暗黑底图').click();
+    await until(() => doc.querySelector('.map-caption')?.textContent.includes('ArcGIS 深灰底图'));
+    assert.equal(doc.querySelectorAll('.drone-icon').length, 3);
+    assert.ok([...doc.querySelectorAll('.leaflet-tile')].some(tile => tile.src.includes('World_Dark_Gray_Base')));
     assert.ok([...doc.querySelectorAll('.drone-icon img')].every(img=>img.getAttribute('src')==='/icons/uav.png'));
     assert.equal(doc.querySelectorAll('.screen-objects .rail-target').length,3);
     assert.equal(doc.querySelectorAll('.screen-objects .rail-group').length,2);
