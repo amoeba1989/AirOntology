@@ -45,8 +45,9 @@ export async function attachAmapSatellite(leafletMap, key, host) {
     await new Promise((resolve,reject) => {
       const script=document.createElement('script');
       script.src=`https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(key)}`;
-      script.onload=resolve;
-      script.onerror=()=>reject(new Error('高德 JS API 加载失败'));
+      const timeout=setTimeout(()=>{script.remove();reject(new Error('高德 JS API 加载超时'));},12000);
+      script.onload=()=>{clearTimeout(timeout);resolve();};
+      script.onerror=()=>{clearTimeout(timeout);script.remove();reject(new Error('高德 JS API 加载失败'));};
       document.head.appendChild(script);
     });
   }
