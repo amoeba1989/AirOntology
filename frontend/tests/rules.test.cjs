@@ -12,7 +12,7 @@ test('规则草稿试运行、发布冲突、版本、迁移的对象配置',asy
  let published,trial,saved,conflict=false;
  const data={revision:0,rules:[],versions:[],events:[],results:[],engine_enabled:true,config:{version:'old',config:{positions:[{id:'pos001',name:'甲阵地',lon:116.4,lat:39.9}],high_threshold:100,medium_threshold:200,low_threshold:300,stale_seconds:30,history_limit:300}}};
  w.fetch=async(url,options={})=>{let result=data,status=200;const body=options.body&&JSON.parse(options.body);
-  if(url==='/api/health')result={version:'2.5.1'};
+  if(url==='/api/health')result={version:'2.5.2'};
   else if(url==='/api/rules/trial'){trial=body;result={at:new Date().toISOString(),results:[{rule_name:'观测过期',entity_id:'u1',status:'matched',reason:'距最后上报40秒'}]};}
   else if(url==='/api/rules'&&options.method==='PUT'){published=body;if(conflict){status=409;result={detail:'规则已被更新'};}else{data.revision++;data.rules=body.rules;result={...data};}}
   else if(url==='/api/config'){saved=body;result={version:'new',config:body.config};}
@@ -22,7 +22,7 @@ test('规则草稿试运行、发布冲突、版本、迁移的对象配置',asy
  function input(el,value){el.value=value;el.dispatchEvent(new w.Event('input',{bubbles:true}));}
  try{
   w.eval(bundle.outputFiles[0].text);await until(()=>button('＋ 观测过期'));
-  assert.match(d.querySelector('.app-version').textContent,/v2.5.1/);
+  assert.match(d.querySelector('.app-version').textContent,/v2.5.2/);
   button('＋ 观测过期').click();await until(()=>d.querySelector('.rules-check input'));
   assert.equal(d.querySelector('.rules-check input').checked,false);
   d.querySelector('.rules-check input').click();button('试运行草稿').click();await until(()=>trial);

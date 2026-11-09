@@ -12,3 +12,12 @@ export function darkBasemapConfig(token = '') {
     source: 'ArcGIS 深灰底图',
   };
 }
+
+// 明亮版采用同系列底图及标注，保持与深灰版相同的 WGS84 显示方式。
+export function lightBasemapConfig() {
+  return {
+    base: `${LEGACY}/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`,
+    reference: `${LEGACY}/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}`,
+    source: 'ArcGIS 浅灰底图',
+  };
+}
