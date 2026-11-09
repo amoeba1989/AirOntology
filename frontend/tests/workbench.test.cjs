@@ -219,6 +219,12 @@ test("多目标地图、独立评估、TTL、回放与规则入口", async () =>
     assert.ok([...doc.querySelectorAll('.drone-icon img')].every(img=>img.getAttribute('src')==='/icons/uav.png'));
     assert.equal(doc.querySelectorAll('.screen-objects .rail-target').length,3);
     assert.equal(doc.querySelectorAll('.screen-objects .rail-group').length,2);
+    positions[1].lon = 111.4;
+    await wait(3100);
+    button('定位无人机').click();
+    await until(() => doc.querySelector('.tile-notice')?.textContent.includes('部分阵地与所有无人机相距超过 20 公里'));
+    assert.equal(doc.querySelectorAll('.drone-icon').length, 3);
+    positions[1].lon = 116.412;
     assert.equal(doc.querySelector('.rail-position-symbol img').getAttribute('src'),'/icons/position.png');
     assert.equal(doc.querySelector('.rail-aircraft img').getAttribute('src'),'/icons/uav.png');
     assert.ok(doc.querySelector('.screen-insights').textContent.includes('ABox 实时事实'));

@@ -65,6 +65,7 @@ createApp(location.pathname.replace(/\/$/, '') === '/rules' ? RulesWorkbench : l
       loading = ref(true),
       follow = ref(false),
       mapMessage = ref(""),
+      extentMessage = ref(""),
       trace = ref(null);
     const showTrails = ref(true),
       showRanges = ref(true),
@@ -142,6 +143,7 @@ createApp(location.pathname.replace(/\/$/, '') === '/rules' ? RulesWorkbench : l
       closed = false,
       polling = false,
       initialized = false,
+      centeredTargets = false,
       snapshotToken = 0;
     const displayPoint=(lat,lon)=>satelliteActive.value?wgs84ToGcj02(lat,lon):[lat,lon];
     async function switchBasemap(value) {
@@ -471,9 +473,13 @@ createApp(location.pathname.replace(/\/$/, '') === '/rules' ? RulesWorkbench : l
           }
         }
       }
-      if (!initialized) {
+      if (!initialized && (data.value.targets.length || data.value.positions.length)) {
         initialized = true;
-        locate();
+        centeredTargets = data.value.targets.length > 0;
+        locate(centeredTargets ? 'targets' : 'all');
+      } else if (!centeredTargets && data.value.targets.length) {
+        centeredTargets = true;
+        locate('targets');
       }
       if (follow.value && target.value)
         map.panTo(displayPoint(target.value.lat, target.value.lon), {
@@ -481,25 +487,21 @@ createApp(location.pathname.replace(/\/$/, '') === '/rules' ? RulesWorkbench : l
           duration: 0.3,
         });
     }
-    function locate() {
-      const coords = [
-        ...(data.value?.positions || []),
-        ...(data.value?.targets || []),
-      ].map((p) => displayPoint(p.lat, p.lon));
-      const bounds = L.latLngBounds(coords);
-      if (point.value && showRanges.value) {
-        const radius = Math.max(
-          ...(assessment.value?.thresholds || data.value.thresholds),
-        );
-        bounds.extend(
-          L.latLng(...displayPoint(point.value.lat, point.value.lon)).toBounds(radius * 2),
-        );
+    function locate(scope = 'all') {
+      // Vue click handlers may pass an event; only the explicit targets scope filters positions.
+      const targetOnly = scope === 'targets';
+      const targets = data.value?.targets || [];
+      const positions = data.value?.positions || [];
+      const entities = targetOnly && targets.length ? targets : [...positions, ...targets];
+      const bounds = L.latLngBounds(entities.map(p => displayPoint(p.lat, p.lon)));
+      if (!targetOnly && point.value && showRanges.value) {
+        const radius = Math.max(...(assessment.value?.thresholds || data.value.thresholds));
+        bounds.extend(L.latLng(...displayPoint(point.value.lat, point.value.lon)).toBounds(radius * 2));
       }
-      if (bounds.isValid())
-        map.fitBounds(bounds.pad(0.15), {
-          padding: [45, 45],
-          maxZoom: 17,
-        });
+      if (bounds.isValid()) map.fitBounds(bounds.pad(0.15), {padding: [45, 45], maxZoom: 17});
+      const distant = targets.length && positions.some(p => targets.every(t =>
+        L.latLng(p.lat, p.lon).distanceTo(L.latLng(t.lat, t.lon)) > 20000));
+      extentMessage.value = distant ? '部分阵地与所有无人机相距超过 20 公里；定位全景会缩小地图，请核对阵地坐标或使用“定位无人机”。' : '';
     }
     function normalizeSelection() {
       if (!data.value?.targets.find((t) => t.id === selected.value))
@@ -718,6 +720,7 @@ createApp(location.pathname.replace(/\/$/, '') === '/rules' ? RulesWorkbench : l
         const config=await request('/api/map/config');
         satelliteAvailable.value = !!config.enabled;
         satelliteKey = config.enabled ? config.key : '';
+        if (satelliteAvailable.value) void switchBasemap('amap');
       } catch {
         satelliteAvailable.value = false;
       }
@@ -797,6 +800,7 @@ createApp(location.pathname.replace(/\/$/, '') === '/rules' ? RulesWorkbench : l
       showDevices,
       draw,
       mapMessage,
+      extentMessage,
       selected,
       positionId,
       trace,
